@@ -1,0 +1,11 @@
+# syntax=docker/dockerfile:1.7
+FROM node:20-alpine
+WORKDIR /app
+RUN corepack enable
+COPY package.json pnpm-lock.yaml* ./
+RUN pnpm install --frozen-lockfile=false
+EXPOSE 5173
+# `--host` exposes the dev server on 0.0.0.0 so Docker port mapping reaches it.
+# Vite hot reload over a bind mount works on macOS/Linux without polling; if you
+# see stale builds on a foreign filesystem, set CHOKIDAR_USEPOLLING=true.
+CMD ["pnpm", "dev", "--host", "0.0.0.0"]

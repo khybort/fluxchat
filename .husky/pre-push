@@ -1,0 +1,25 @@
+#!/usr/bin/env sh
+# Heavier gate run before pushing — typecheck, lint, tests, and a DB-less Prisma
+# schema check (validate + format). The deeper migration drift check that needs
+# a shadow database is opt-in via `make migrate-shadow-check` since it requires
+# Docker to spin up a temp Postgres.
+
+set -e
+
+echo "▸ typecheck (backend)"
+pnpm typecheck
+
+echo "▸ typecheck (frontend)"
+pnpm typecheck:web
+
+echo "▸ lint (backend + frontend)"
+pnpm lint
+pnpm lint:web
+
+echo "▸ tests"
+pnpm test
+
+echo "▸ schema check (validate + format)"
+pnpm prisma:check
+
+echo "✓ pre-push checks passed"

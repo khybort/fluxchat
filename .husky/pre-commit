@@ -1,0 +1,5 @@
+#!/usr/bin/env sh
+# Run lint + format on staged files only — fast, ~1s for typical edits.
+# For deeper checks (typecheck, tests, migration drift), see .husky/pre-push.
+
+pnpm exec lint-staged

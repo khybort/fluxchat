@@ -1,0 +1,152 @@
+# Profiles
+#   dev   — db + api-dev (tsx watch, hot reload) + web-dev (vite dev, hot reload)
+#   prod  — db + api (compiled image, runs migrations on entrypoint)
+#   test  — db-test (separate Postgres for the test suite)
+#
+# Usage:
+#   make docker-dev        # docker compose --profile dev up --build
+#   make docker-prod       # docker compose --profile prod up -d --build
+#   docker compose --profile test up -d db-test
+
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: appnation-chat-db
+    environment:
+      POSTGRES_DB: appnation_chat
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - '5432:5432'
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U postgres']
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  db-test:
+    image: postgres:16-alpine
+    container_name: appnation-chat-db-test
+    profiles: ['test']
+    environment:
+      POSTGRES_DB: appnation_chat_test
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - '5433:5432'
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U postgres']
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  # ────────── DEV PROFILE ──────────
+  # Backend with tsx watch. Source is bind-mounted; node_modules is kept inside
+  # the container so the host's platform-specific binaries (e.g. esbuild) don't
+  # leak in.
+  api-dev:
+    profiles: ['dev']
+    build:
+      context: .
+      target: dev
+    container_name: appnation-chat-api-dev
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      NODE_ENV: development
+      PORT: 3000
+      DATABASE_URL: postgresql://postgres:postgres@db:5432/appnation_chat?schema=public&connection_limit=10&pool_timeout=20
+      JWT_SECRET: ${JWT_SECRET:-dev-jwt-secret-replace-with-32-or-more-characters}
+      APP_CHECK_TOKEN: ${APP_CHECK_TOKEN:-dev-app-check-token-12345678}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      ANTHROPIC_MODEL: ${ANTHROPIC_MODEL:-claude-sonnet-4-6}
+      GROQ_API_KEY: ${GROQ_API_KEY:-}
+      GROQ_MODEL: ${GROQ_MODEL:-openai/gpt-oss-120b}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      LOG_LEVEL: ${LOG_LEVEL:-debug}
+      CORS_ORIGINS: http://localhost:5173
+      STREAMING_ENABLED: ${STREAMING_ENABLED:-true}
+      PAGINATION_LIMIT: ${PAGINATION_LIMIT:-20}
+      AI_TOOLS_ENABLED: ${AI_TOOLS_ENABLED:-false}
+      CHAT_HISTORY_ENABLED: ${CHAT_HISTORY_ENABLED:-true}
+      RATE_LIMIT_PER_MINUTE: ${RATE_LIMIT_PER_MINUTE:-1000}
+      REDIS_URL: ${REDIS_URL:-}
+    volumes:
+      - ./src:/app/src:cached
+      - ./prisma:/app/prisma:cached
+      - ./tests:/app/tests:cached
+      - ./tsconfig.json:/app/tsconfig.json:ro
+      - ./tsconfig.build.json:/app/tsconfig.build.json:ro
+      - ./vitest.config.ts:/app/vitest.config.ts:ro
+      - ./package.json:/app/package.json:ro
+      - api_node_modules:/app/node_modules
+    ports:
+      - '3000:3000'
+    command: pnpm dev:api
+
+  web-dev:
+    profiles: ['dev']
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.dev
+    container_name: appnation-chat-web-dev
+    environment:
+      VITE_API_URL: http://localhost:3000
+      VITE_APP_CHECK_TOKEN: ${APP_CHECK_TOKEN:-dev-app-check-token-12345678}
+      # Set to 'true' on macOS/Windows if file changes don't trigger HMR.
+      CHOKIDAR_USEPOLLING: ${CHOKIDAR_USEPOLLING:-false}
+    volumes:
+      - ./frontend/src:/app/src:cached
+      - ./frontend/index.html:/app/index.html:ro
+      - ./frontend/vite.config.ts:/app/vite.config.ts:ro
+      - ./frontend/tailwind.config.ts:/app/tailwind.config.ts:ro
+      - ./frontend/postcss.config.js:/app/postcss.config.js:ro
+      - ./frontend/tsconfig.json:/app/tsconfig.json:ro
+      - ./frontend/tsconfig.node.json:/app/tsconfig.node.json:ro
+      - ./frontend/package.json:/app/package.json:ro
+      - web_node_modules:/app/node_modules
+    ports:
+      - '5173:5173'
+
+  # ────────── PROD PROFILE ──────────
+  api:
+    profiles: ['prod']
+    build:
+      context: .
+      target: runtime
+    container_name: appnation-chat-api
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      DATABASE_URL: postgresql://postgres:postgres@db:5432/appnation_chat?schema=public&connection_limit=10&pool_timeout=20
+      # NOTE: prod requires real values for these — set them in your environment
+      # or a `.env` file before running `make docker-prod`. The app validates
+      # JWT_SECRET length via zod and aborts startup if it's too short.
+      JWT_SECRET: ${JWT_SECRET:-}
+      APP_CHECK_TOKEN: ${APP_CHECK_TOKEN:-}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      ANTHROPIC_MODEL: ${ANTHROPIC_MODEL:-claude-sonnet-4-6}
+      GROQ_API_KEY: ${GROQ_API_KEY:-}
+      GROQ_MODEL: ${GROQ_MODEL:-openai/gpt-oss-120b}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      CORS_ORIGINS: ${CORS_ORIGINS:-}
+      STREAMING_ENABLED: ${STREAMING_ENABLED:-true}
+      PAGINATION_LIMIT: ${PAGINATION_LIMIT:-20}
+      AI_TOOLS_ENABLED: ${AI_TOOLS_ENABLED:-false}
+      CHAT_HISTORY_ENABLED: ${CHAT_HISTORY_ENABLED:-true}
+      RATE_LIMIT_PER_MINUTE: ${RATE_LIMIT_PER_MINUTE:-60}
+      REDIS_URL: ${REDIS_URL:-}
+    ports:
+      - '3000:3000'
+
+volumes:
+  db_data:
+  api_node_modules:
+  web_node_modules:

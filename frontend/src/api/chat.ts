@@ -1,0 +1,48 @@
+import { apiFetch } from './client';
+import type { Chat, CompletionJsonResponse, HealthzResponse, Message, PageResult } from './types';
+
+export const createChat = (token: string, input: { title?: string } = {}): Promise<Chat> =>
+  apiFetch<Chat>('/api/chats', { method: 'POST', body: input, token });
+
+export const listChats = (
+  token: string,
+  params: { cursor?: string; limit?: number } = {},
+): Promise<PageResult<Chat>> => {
+  const search = new URLSearchParams();
+  if (params.cursor) search.set('cursor', params.cursor);
+  if (params.limit !== undefined) search.set('limit', String(params.limit));
+  const qs = search.toString();
+  return apiFetch<PageResult<Chat>>(`/api/chats${qs ? `?${qs}` : ''}`, {
+    method: 'GET',
+    token,
+  });
+};
+
+export const getHistory = (
+  token: string,
+  chatId: string,
+  params: { cursor?: string; limit?: number } = {},
+): Promise<PageResult<Message>> => {
+  const search = new URLSearchParams();
+  if (params.cursor) search.set('cursor', params.cursor);
+  if (params.limit !== undefined) search.set('limit', String(params.limit));
+  const qs = search.toString();
+  return apiFetch<PageResult<Message>>(
+    `/api/chats/${encodeURIComponent(chatId)}/history${qs ? `?${qs}` : ''}`,
+    { method: 'GET', token },
+  );
+};
+
+export const completion = (
+  token: string,
+  chatId: string,
+  message: string,
+): Promise<CompletionJsonResponse> =>
+  apiFetch<CompletionJsonResponse>(`/api/chats/${encodeURIComponent(chatId)}/completion`, {
+    method: 'POST',
+    body: { message },
+    token,
+  });
+
+export const getHealthz = (): Promise<HealthzResponse> =>
+  apiFetch<HealthzResponse>('/healthz', { method: 'GET' });

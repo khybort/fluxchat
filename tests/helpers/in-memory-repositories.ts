@@ -1,0 +1,85 @@
+import type {
+  IChatRepository,
+  IMessageRepository,
+} from '../../src/modules/chat/chat.repository.interface.js';
+import type { Chat, ListParams, Message, MessageRole } from '../../src/modules/chat/chat.types.js';
+
+let nextId = 1;
+const id = (): string => `00000000-0000-0000-0000-${String(nextId++).padStart(12, '0')}`;
+
+export class InMemoryChatRepository implements IChatRepository {
+  public readonly chats: Chat[] = [];
+
+  public async findByUser(userId: string, params: ListParams): Promise<Chat[]> {
+    const sorted = this.chats
+      .filter((c) => c.userId === userId)
+      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+    let startIdx = 0;
+    if (params.cursor) {
+      const cursorIdx = sorted.findIndex((c) => c.id === params.cursor);
+      startIdx = cursorIdx >= 0 ? cursorIdx + 1 : 0;
+    }
+    return sorted.slice(startIdx, startIdx + params.limit + 1);
+  }
+
+  public async findByIdForUser(chatId: string, userId: string): Promise<Chat | null> {
+    return this.chats.find((c) => c.id === chatId && c.userId === userId) ?? null;
+  }
+
+  public async create(input: { userId: string; title: string }): Promise<Chat> {
+    const now = new Date();
+    const chat: Chat = {
+      id: id(),
+      userId: input.userId,
+      title: input.title,
+      createdAt: now,
+      updatedAt: now,
+    };
+    this.chats.push(chat);
+    return chat;
+  }
+
+  public async touchUpdatedAt(chatId: string): Promise<void> {
+    const chat = this.chats.find((c) => c.id === chatId);
+    if (chat) chat.updatedAt = new Date();
+  }
+}
+
+export class InMemoryMessageRepository implements IMessageRepository {
+  public readonly messages: Message[] = [];
+
+  public async findByChat(chatId: string, params: ListParams): Promise<Message[]> {
+    const sorted = this.messages
+      .filter((m) => m.chatId === chatId)
+      .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
+    let startIdx = 0;
+    if (params.cursor) {
+      const cursorIdx = sorted.findIndex((m) => m.id === params.cursor);
+      startIdx = cursorIdx >= 0 ? cursorIdx + 1 : 0;
+    }
+    return sorted.slice(startIdx, startIdx + params.limit + 1);
+  }
+
+  public async findLastN(chatId: string, count: number): Promise<Message[]> {
+    return this.messages
+      .filter((m) => m.chatId === chatId)
+      .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime())
+      .slice(-count);
+  }
+
+  public async create(input: {
+    chatId: string;
+    role: MessageRole;
+    content: string;
+  }): Promise<Message> {
+    const message: Message = {
+      id: id(),
+      chatId: input.chatId,
+      role: input.role,
+      content: input.content,
+      createdAt: new Date(),
+    };
+    this.messages.push(message);
+    return message;
+  }
+}

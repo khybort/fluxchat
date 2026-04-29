@@ -1,0 +1,49 @@
+import type { IChatRepository } from './chat.repository.interface.js';
+import type { Chat, PageResult } from './chat.types.js';
+import { DEFAULT_CHAT_TITLE, PAGINATION } from '../../shared/constants.js';
+import { NotFoundError } from '../../shared/errors/app-error.js';
+import type { FeatureFlagService } from '../../shared/feature-flags/feature-flag.service.js';
+import { buildPagedResult } from '../../shared/pagination/cursor.js';
+
+export interface ListChatsInput {
+  userId: string;
+  cursor?: string | undefined;
+  limit?: number | undefined;
+}
+
+const clamp = (value: number, min: number, max: number): number =>
+  Math.min(max, Math.max(min, value));
+
+export class ChatService {
+  constructor(
+    private readonly chats: IChatRepository,
+    private readonly flags: FeatureFlagService,
+  ) {}
+
+  public async listChats(input: ListChatsInput): Promise<PageResult<Chat>> {
+    const ceiling = this.flags.get('PAGINATION_LIMIT');
+    const requested = input.limit ?? ceiling;
+    const limit = clamp(requested, PAGINATION.MIN_LIMIT, ceiling);
+
+    const rows = await this.chats.findByUser(input.userId, {
+      cursor: input.cursor,
+      limit,
+    });
+    return buildPagedResult(rows, limit, (c) => c.id);
+  }
+
+  public async ensureOwnership(chatId: string, userId: string): Promise<Chat> {
+    const chat = await this.chats.findByIdForUser(chatId, userId);
+    if (!chat) {
+      // 404 not 403 — we do not leak whether the chat exists for someone else.
+      // CLAUDE.md §13.
+      throw new NotFoundError('Chat not found');
+    }
+    return chat;
+  }
+
+  public async createChat(input: { userId: string; title?: string }): Promise<Chat> {
+    const title = input.title?.trim() || DEFAULT_CHAT_TITLE;
+    return this.chats.create({ userId: input.userId, title });
+  }
+}
