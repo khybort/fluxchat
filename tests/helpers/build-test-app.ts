@@ -1,3 +1,9 @@
+// OpenAPI side-effect imports — must precede any registry consumer (mountDocs).
+import '../../src/shared/openapi/zod.js';
+import '../../src/modules/auth/auth.openapi.js';
+import '../../src/modules/chat/chat.openapi.js';
+import '../../src/modules/healthz.openapi.js';
+
 import cors from 'cors';
 import express, { type Express } from 'express';
 import helmet from 'helmet';
@@ -26,6 +32,7 @@ import { appCheckMiddleware } from '../../src/shared/middleware/app-check.js';
 import { authMiddleware } from '../../src/shared/middleware/auth.js';
 import { clientTypeMiddleware } from '../../src/shared/middleware/client-type.js';
 import { requestLoggerMiddleware } from '../../src/shared/middleware/request-logger.js';
+import { mountDocs } from '../../src/shared/openapi/docs.middleware.js';
 import { InMemoryRateLimitStore } from '../../src/shared/rate-limit/in-memory.store.js';
 import type { IRateLimitStore } from '../../src/shared/rate-limit/rate-limit.types.js';
 
@@ -76,12 +83,17 @@ export const buildTestApp = (
   app.get('/healthz', (_req, res) => {
     res.status(200).json({ status: 'ok', flags: flags.snapshot() });
   });
+
+  // Mirror app.ts: docs come before appCheck so they're browsable without a token.
+  mountDocs(app, { enabled: config.values.app.docsEnabled, logger });
+
   app.use(appCheckMiddleware);
   app.use(clientTypeMiddleware);
   app.use('/api/auth', authRouters.publicRouter);
   app.use(authMiddleware);
   app.use('/api/auth', authRouters.protectedRouter);
   app.use('/api', buildChatRouter(chatController, rateLimitStore));
+
   app.use(notFoundHandler);
   app.use(errorHandler);
 

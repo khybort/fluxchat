@@ -17,6 +17,7 @@ const TEST_ENV: Record<string, string> = {
   AI_TOOLS_ENABLED: 'false',
   CHAT_HISTORY_ENABLED: 'true',
   RATE_LIMIT_PER_MINUTE: '1000',
+  DOCS_ENABLED: 'true',
 };
 
 // Force test env, even if a prior process exported a different value.

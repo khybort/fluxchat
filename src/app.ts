@@ -1,3 +1,10 @@
+// Side-effect imports — keep at the very top so the zod-openapi extension
+// is wired in BEFORE any module-level *.openapi.ts file evaluates.
+import './shared/openapi/zod.js';
+import './modules/auth/auth.openapi.js';
+import './modules/chat/chat.openapi.js';
+import './modules/healthz.openapi.js';
+
 import cors from 'cors';
 import express, { type Express } from 'express';
 import helmet from 'helmet';
@@ -9,6 +16,7 @@ import { appCheckMiddleware } from './shared/middleware/app-check.js';
 import { authMiddleware } from './shared/middleware/auth.js';
 import { clientTypeMiddleware } from './shared/middleware/client-type.js';
 import { requestLoggerMiddleware } from './shared/middleware/request-logger.js';
+import { mountDocs } from './shared/openapi/docs.middleware.js';
 
 /**
  * Builds the Express app without starting it. `server.ts` owns lifecycle.
@@ -20,8 +28,9 @@ import { requestLoggerMiddleware } from './shared/middleware/request-logger.js';
  *   4. auth             -> JWT mock, sets req.user
  *   5. clientType       -> sets req.clientType
  *   6. routes
- *   7. notFoundHandler
- *   8. errorHandler     -> last
+ *   7. /docs (when DOCS_ENABLED) — mounted AFTER routes so /docs doesn't shadow anything
+ *   8. notFoundHandler
+ *   9. errorHandler     -> last
  */
 export const createApp = (container: AppContainer): Express => {
   const app = express();
@@ -31,7 +40,7 @@ export const createApp = (container: AppContainer): Express => {
 
   app.use(requestLoggerMiddleware);
 
-  app.use(helmet());
+  app.use(helmet({ contentSecurityPolicy: false }));
   app.use(buildCors(container));
   app.use(express.json({ limit: REQUEST_BODY_LIMIT }));
 
@@ -40,6 +49,16 @@ export const createApp = (container: AppContainer): Express => {
       status: 'ok',
       flags: container.flags.snapshot(),
     });
+  });
+
+  // OpenAPI docs are mounted BEFORE appCheck/JWT — Swagger UI is meant to be
+  // browsable without a token. Access is governed entirely by DOCS_ENABLED;
+  // when off, both /docs and /docs.json fall through to a 404. Production
+  // deployments that want stricter gating should keep DOCS_ENABLED=false and
+  // expose the spec via a private route instead.
+  mountDocs(app, {
+    enabled: container.config.values.app.docsEnabled,
+    logger: container.logger,
   });
 
   app.use(appCheckMiddleware);

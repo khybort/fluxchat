@@ -37,6 +37,10 @@ export const EnvSchema = z.object({
   CHAT_HISTORY_ENABLED: booleanFromString.default(true),
   RATE_LIMIT_PER_MINUTE: z.coerce.number().int().positive().default(60),
 
+  // OpenAPI / Swagger documentation toggle. Default ON; flip to false in prod
+  // (or front it with a reverse-proxy auth) if /docs should not be public.
+  DOCS_ENABLED: booleanFromString.default(true),
+
   // Optional Redis (used for rate limiting when set). When omitted, an in-memory
   // store is used — fine for single-instance deployments but inadequate for
   // horizontally-scaled production.

@@ -82,6 +82,20 @@ Hot reload inside containers works via bind-mounted source + named volumes for `
 
 If your shell prints "fatal: not a git repository" during install, run `git init` and then `make hooks-install`.
 
+## API documentation (Swagger)
+
+Once the backend is running, a live OpenAPI 3.1 spec generated from the same zod
+schemas that validate requests is available at:
+
+| URL | What you get |
+|---|---|
+| http://localhost:3000/docs | Swagger UI — try-it-out, persisted Auth header |
+| http://localhost:3000/docs.json | Raw OpenAPI 3.1 document |
+
+Both are public (gated only by the `DOCS_ENABLED` env flag, default `true`). Set
+`DOCS_ENABLED=false` to disable them — both URLs then explicitly return 404. See
+[CLAUDE.md §17.3](./CLAUDE.md) for how to extend the docs when adding endpoints.
+
 ## Endpoints
 
 All endpoints require:

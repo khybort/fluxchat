@@ -95,6 +95,7 @@ pnpm format    # prettier --write .
 ## Smoke test
 
 1. Start the backend (`pnpm dev` in the repo root with a configured `.env`).
+   Browse the live API spec at **http://localhost:3000/docs** while it runs.
 2. In another terminal: `pnpm dev` here.
 3. Open http://localhost:5173, register an account.
 4. Type "hello" — the sidebar shows a new chat, the message streams in word-by-word.

@@ -93,6 +93,12 @@ src/
 │   │   ├── rate-limit.types.ts     # IRateLimitStore + RateLimitDecision
 │   │   ├── in-memory.store.ts      # single-instance default
 │   │   └── redis.store.ts          # multi-instance, structural Redis client
+│   ├── openapi/
+│   │   ├── zod.ts                  # extendZodWithOpenApi side-effect
+│   │   ├── registry.ts             # OpenAPIRegistry singleton
+│   │   ├── security.ts             # security schemes + ErrorResponse + paged helper
+│   │   ├── build-spec.ts           # OpenApiGeneratorV31 -> OpenAPI 3.1 doc
+│   │   └── docs.middleware.ts      # mountDocs → /docs.json + /docs (Swagger UI)
 │   ├── pagination/
 │   │   └── cursor.ts               # encode/decode cursor helpers
 │   ├── types/
@@ -107,6 +113,7 @@ src/
 │   │   ├── chat.routes.ts
 │   │   ├── chat.dto.ts             # zod schemas + inferred types
 │   │   ├── chat.mapper.ts          # Prisma <-> domain mapping
+│   │   ├── chat.openapi.ts         # OpenAPI registration (paths + schemas)
 │   │   └── strategies/
 │   │       ├── completion.strategy.ts        # IStrategy interface
 │   │       ├── streaming-completion.strategy.ts
@@ -903,6 +910,45 @@ The repo ships a `Makefile` so you don't have to remember pnpm script names. Run
 - `.husky/pre-push` runs the heavier gate: backend typecheck, frontend typecheck, both lints, full test suite, and the DB-less Prisma schema check. The deeper drift check (`make migrate-shadow-check`) is opt-in because it needs Docker.
 - The `prepare` script in `package.json` re-installs hooks on `pnpm install`. If the hooks fail to attach (e.g. you cloned before `git init` ran), `make hooks-install` re-runs `husky`.
 - The `lint-staged` config lives in `package.json#lint-staged` and routes frontend files into the frontend's own ESLint/Prettier (so the right config + plugins apply).
+
+## 17.3 API Documentation (OpenAPI / Swagger)
+
+The API exposes its OpenAPI 3.1 spec from a **single source of truth**: the same zod schemas that already validate requests. There is no parallel YAML to drift.
+
+| URL | What it serves | Auth |
+|---|---|---|
+| `GET /docs.json` | Raw OpenAPI 3.1 document (JSON) | None — public, gated by `DOCS_ENABLED` |
+| `GET /docs` | Swagger UI rendered against `/docs.json` | None — public, gated by `DOCS_ENABLED` |
+
+When `DOCS_ENABLED=false` both routes return **404 NOT_FOUND** (not 401) so it's clear the feature is off, not auth-gated.
+
+### How a new endpoint shows up in the docs
+
+1. Add the route + zod DTO as usual (`chat.dto.ts`, `chat.routes.ts`, etc.).
+2. In the module's `*.openapi.ts` file:
+   - Call `.openapi('SchemaName', { example: ... })` on the request/response zod schemas.
+   - Call `openApiRegistry.registerPath({ method, path, tags, security, request, responses })` for the new route.
+3. That's it — `src/app.ts` already side-effect-imports `auth.openapi.ts`, `chat.openapi.ts`, and `healthz.openapi.ts` at module load, so the registry fills before `mountDocs()` reads it.
+
+### Security schemes
+
+Three schemes are declared once in `src/shared/openapi/security.ts` and reused across all paths:
+- `bearerAuth` → `Authorization: Bearer <jwt>`
+- `appCheckHeader` → `x-firebase-app-check`
+- `clientTypeHeader` → `x-client-type`
+
+`AUTHED_SECURITY` (all three) is the default; `PUBLIC_SECURITY` (App Check + clientType only) is used by `register` and `login`.
+
+### Streaming response
+
+`POST /api/chats/:chatId/completion` is the only path with two response variants: `application/json` and `text/event-stream`. Both are documented under `responses['200'].content`. Each SSE event variant (`thinking`, `tool_execution`, `delta`, `done`) is registered as its own component schema so consumers can lint stream payloads.
+
+### Test coverage
+
+`tests/integration/docs.e2e.test.ts` asserts:
+- `/docs.json` returns OpenAPI 3.1 with all 7 expected paths and 3 security schemes.
+- `/docs` returns Swagger UI HTML.
+- With `DOCS_ENABLED=false`, `/docs.json` returns 404 (not 401).
 
 ## 18. Git & Commit Hygiene
 
