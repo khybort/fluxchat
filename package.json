@@ -77,11 +77,11 @@
   },
   "lint-staged": {
     "src/**/*.ts": [
-      "eslint --fix --no-warn-ignored",
+      "eslint --fix",
       "prettier --write"
     ],
     "tests/**/*.ts": [
-      "eslint --fix --no-warn-ignored",
+      "eslint --fix",
       "prettier --write"
     ],
     "frontend/src/**/*.{ts,tsx}": [
