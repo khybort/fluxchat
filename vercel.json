@@ -1,0 +1,20 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "version": 2,
+  "framework": null,
+  "installCommand": "pnpm install --frozen-lockfile=false",
+  "buildCommand": "pnpm prisma generate",
+  "ignoreCommand": "git diff --quiet HEAD^ HEAD ./api ./src ./prisma ./package.json ./pnpm-lock.yaml ./vercel.json",
+  "functions": {
+    "api/index.ts": {
+      "maxDuration": 60
+    }
+  },
+  "rewrites": [{ "source": "/(.*)", "destination": "/api" }],
+  "headers": [
+    {
+      "source": "/docs.json",
+      "headers": [{ "key": "Cache-Control", "value": "no-store" }]
+    }
+  ]
+}

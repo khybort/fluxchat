@@ -133,6 +133,12 @@ tests/
 ├── unit/
 ├── integration/
 └── helpers/
+api/
+└── index.ts                        # Vercel serverless entry (wraps Express app)
+.github/
+└── workflows/
+    ├── ci.yml                      # PR + push gate (typecheck/lint/tests/build)
+    └── deploy.yml                  # push-to-main: migrate + Vercel deploy
 .env.example
 docker-compose.yml
 Dockerfile
@@ -949,6 +955,25 @@ Three schemes are declared once in `src/shared/openapi/security.ts` and reused a
 - `/docs.json` returns OpenAPI 3.1 with all 7 expected paths and 3 security schemes.
 - `/docs` returns Swagger UI HTML.
 - With `DOCS_ENABLED=false`, `/docs.json` returns 404 (not 401).
+
+## 17.4 Deployment (Vercel + Neon + GitHub Actions)
+
+Production runs on the free tier of Vercel (backend serverless + frontend SPA) and Neon (Postgres). Pipeline lives in `.github/workflows/`:
+
+- **`ci.yml`** — runs on every PR and on push to `main`. Gates: typecheck × 2 (backend, frontend), lint × 2, `pnpm test` (70 tests), `prisma:check`, build × 2. Same checks `pre-push` runs locally — pre-push catches drift before CI does.
+- **`deploy.yml`** — runs on push to `main` (i.e. after a PR merges). Reuses `ci.yml` via `workflow_call` as the gate, then runs three parallel jobs:
+  1. `migrate` → `prisma migrate deploy` against the production DATABASE_URL secret.
+  2. `deploy-backend` → `vercel build --prod` + `vercel deploy --prebuilt --prod` from the repo root.
+  3. `deploy-frontend` → same, scoped to `./frontend`.
+
+Vercel's native auto-deploy is **off** — the GitHub Actions pipeline owns it so migrations run before code, in a single observable run. The `vercel.json` files declare `framework`, install/build commands, function `maxDuration` (60s for the backend SSE path), and SPA rewrites for the frontend.
+
+Backend serverless entry: [`api/index.ts`](api/index.ts) imports the existing Express app from `src/app.ts`. Vercel rewrites every path to this single function (`{ source: '/(.*)', destination: '/api' }`), so routing inside Express is unchanged. The PrismaService singleton survives across warm invocations; cold starts pay one DB connect.
+
+Operator setup (one-time: Neon project, Vercel link, env vars, GitHub secrets) is in [`DEPLOYMENT.md`](DEPLOYMENT.md). Adding a new feature flag or env var requires three places:
+1. `src/config/env.schema.ts` — runtime validation.
+2. Vercel project env vars (Production, Preview).
+3. `.env.example` — documentation.
 
 ## 18. Git & Commit Hygiene
 

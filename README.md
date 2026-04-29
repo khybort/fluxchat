@@ -5,7 +5,7 @@ This repo ships both halves of the case study:
 - **Backend** (this directory): TypeScript + Express + Prisma + PostgreSQL with runtime feature flagging, Anthropic / Groq / OpenAI providers, JWT auth, real-time SSE streaming. Architecture, design patterns, coding standards, and the verification checklist live in [`CLAUDE.md`](./CLAUDE.md).
 - **Frontend** ([`frontend/`](./frontend)): React + Vite + shadcn/ui + lucide-react + framer-motion. Animated chat UI, SSE streaming, real-time `tool_execution` cards, pagination, multi-client detection, runtime feature-flag awareness. See [`frontend/README.md`](./frontend/README.md).
 
-Run them together with the steps below.
+Run them together with the steps below — or skip straight to [`DEPLOYMENT.md`](./DEPLOYMENT.md) for the free-tier production deploy (Neon Postgres + Vercel + GitHub Actions, triggered by every merge to `main`).
 
 ## Features
 
@@ -240,6 +240,12 @@ REDIS_URL=redis://localhost:6379 pnpm dev
 ```
 
 Algorithm: fixed-window counter (`INCR`/`PEXPIRE`/`PTTL` in Redis; bucket-with-refill in memory). Both expose the same `consume(key, limit, windowMs) -> Promise<RateLimitDecision>` contract.
+
+## Deployment
+
+Free-tier production stack: **Neon Postgres + Vercel (backend serverless + frontend SPA) + GitHub Actions**. Every merge to `main` runs the CI gate (typecheck × 2, lint × 2, 70 tests, schema check, build × 2), applies Prisma migrations, then deploys both halves to Vercel in parallel.
+
+Step-by-step setup (signup, env vars, GitHub secrets) lives in [`DEPLOYMENT.md`](./DEPLOYMENT.md).
 
 ## Decisions
 

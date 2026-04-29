@@ -1,0 +1,68 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_call:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    name: typecheck · lint · test · build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+          cache-dependency-path: |
+            pnpm-lock.yaml
+            frontend/pnpm-lock.yaml
+
+      - name: Install backend deps
+        run: pnpm install --frozen-lockfile=false
+
+      - name: Install frontend deps
+        run: pnpm --dir frontend install --frozen-lockfile=false
+
+      - name: Generate Prisma client
+        run: pnpm prisma:generate
+
+      - name: Schema check (validate + format)
+        run: pnpm prisma:check
+
+      - name: Typecheck (backend)
+        run: pnpm typecheck
+
+      - name: Typecheck (frontend)
+        run: pnpm typecheck:web
+
+      - name: Lint (backend)
+        run: pnpm lint
+
+      - name: Lint (frontend)
+        run: pnpm lint:web
+
+      - name: Tests (backend)
+        run: pnpm test
+
+      - name: Build (backend)
+        run: pnpm build
+
+      - name: Build (frontend)
+        run: pnpm build:web
