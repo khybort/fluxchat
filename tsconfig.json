@@ -26,6 +26,6 @@
     "sourceMap": true,
     "removeComments": false
   },
-  "include": ["src/**/*.ts", "tests/**/*.ts", "api/**/*.ts"],
+  "include": ["src/**/*.ts", "tests/**/*.ts"],
   "exclude": ["node_modules", "dist", "coverage"]
 }
