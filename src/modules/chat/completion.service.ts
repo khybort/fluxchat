@@ -4,6 +4,7 @@ import type { CompletionStrategyFactory } from './strategies/completion-strategy
 import type { CompletionResult } from './strategies/completion.strategy.js';
 import type { ChatTurn } from '../../infrastructure/ai/ai.types.js';
 import type { Logger } from '../../infrastructure/logger/logger.js';
+import { withSpan } from '../../infrastructure/tracing/span.js';
 import { LIMITED_HISTORY_COUNT } from '../../shared/constants.js';
 
 export interface RunCompletionInput {
@@ -22,36 +23,38 @@ export class CompletionService {
   ) {}
 
   public async run(input: RunCompletionInput): Promise<CompletionResult> {
-    await this.chatService.ensureOwnership(input.chatId, input.userId);
+    return withSpan('completion.run', async () => {
+      await this.chatService.ensureOwnership(input.chatId, input.userId);
 
-    // Persist the user message first so it appears in history even if the
-    // AI call fails partway through.
-    await this.messages.create({
-      chatId: input.chatId,
-      role: 'user',
-      content: input.prompt,
-    });
+      // Persist the user message first so it appears in history even if the
+      // AI call fails partway through.
+      await this.messages.create({
+        chatId: input.chatId,
+        role: 'user',
+        content: input.prompt,
+      });
 
-    const history = await this.buildHistory(input.chatId);
+      const history = await this.buildHistory(input.chatId);
 
-    const strategy = this.factory.build(input.signal);
-    return strategy.execute({
-      history,
-      prompt: input.prompt,
-      onComplete: async (assistantText) => {
-        if (!assistantText.trim()) {
-          this.logger.pino.warn(
-            { chatId: input.chatId },
-            'completion_empty_assistant_text_skipped',
-          );
-          return;
-        }
-        await this.messages.create({
-          chatId: input.chatId,
-          role: 'assistant',
-          content: assistantText,
-        });
-      },
+      const strategy = this.factory.build(input.signal);
+      return strategy.execute({
+        history,
+        prompt: input.prompt,
+        onComplete: async (assistantText) => {
+          if (!assistantText.trim()) {
+            this.logger.pino.warn(
+              { chatId: input.chatId },
+              'completion_empty_assistant_text_skipped',
+            );
+            return;
+          }
+          await this.messages.create({
+            chatId: input.chatId,
+            role: 'assistant',
+            content: assistantText,
+          });
+        },
+      });
     });
   }
 

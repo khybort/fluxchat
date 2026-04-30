@@ -1,4 +1,4 @@
-import pino, { type Logger as PinoLogger } from 'pino';
+import { pino, type Logger as PinoLogger } from 'pino';
 
 import { Config } from '../../config/config.js';
 

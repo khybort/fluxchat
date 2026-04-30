@@ -3,8 +3,12 @@ import { PrismaClient } from '@prisma/client';
 
 import { Logger } from '../logger/logger.js';
 
+const SLOW_QUERY_MS = 200;
+
 type PrismaEventClient = PrismaClient & {
   $on: (event: 'error' | 'warn', cb: (event: Prisma.LogEvent) => void) => void;
+} & {
+  $on: (event: 'query', cb: (event: Prisma.QueryEvent) => void) => void;
 };
 
 export class PrismaService {
@@ -16,6 +20,9 @@ export class PrismaService {
       log: [
         { emit: 'event', level: 'error' },
         { emit: 'event', level: 'warn' },
+        // Stream every query so we can WARN on slow ones. Downstream filtering
+        // keeps the noisy fast-path queries off the log pipeline in prod.
+        { emit: 'event', level: 'query' },
       ],
     });
 
@@ -27,6 +34,22 @@ export class PrismaService {
     });
     eventClient.$on('warn', (event) => {
       logger.pino.warn({ event }, 'prisma_warn');
+    });
+    eventClient.$on('query', (event) => {
+      // Operationally we only care about queries slower than SLOW_QUERY_MS. The
+      // duration field is reported in milliseconds by Prisma since 5.x. We
+      // strip the (potentially long) raw query body from the log line on
+      // purpose — the target field plus duration is enough to spot a culprit.
+      if (event.duration >= SLOW_QUERY_MS) {
+        logger.pino.warn(
+          {
+            durationMs: event.duration,
+            target: event.target,
+            params: event.params,
+          },
+          'prisma_slow_query',
+        );
+      }
     });
 
     this.client = client;

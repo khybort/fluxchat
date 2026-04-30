@@ -1,5 +1,5 @@
 import type { RequestHandler } from 'express';
-import jwt from 'jsonwebtoken';
+import { verify as jwtVerify } from 'jsonwebtoken';
 
 import { Config } from '../../config/config.js';
 import { UnauthorizedError } from '../errors/app-error.js';
@@ -23,7 +23,7 @@ export const authMiddleware: RequestHandler = (req, _res, next) => {
   const token = header.slice('bearer '.length).trim();
 
   try {
-    const decoded = jwt.verify(token, Config.getInstance().values.auth.jwtSecret);
+    const decoded = jwtVerify(token, Config.getInstance().values.auth.jwtSecret);
     if (!isJwtPayload(decoded)) {
       return next(new UnauthorizedError('Invalid token payload'));
     }

@@ -1,5 +1,5 @@
 import bcrypt from 'bcryptjs';
-import jwt from 'jsonwebtoken';
+import { sign as jwtSign } from 'jsonwebtoken';
 
 import type { Config } from '../../config/config.js';
 import { ConflictError, UnauthorizedError } from '../../shared/errors/app-error.js';
@@ -93,7 +93,7 @@ export class AuthService {
   }
 
   private buildResult(user: User): AuthResult {
-    const token = jwt.sign({ sub: user.id, email: user.email }, this.config.values.auth.jwtSecret, {
+    const token = jwtSign({ sub: user.id, email: user.email }, this.config.values.auth.jwtSecret, {
       expiresIn: TOKEN_TTL_SECONDS,
     });
     return {

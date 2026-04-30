@@ -6,7 +6,7 @@ import './modules/chat/chat.openapi.js';
 import './modules/healthz.openapi.js';
 
 import cors from 'cors';
-import express, { type Express, type Request, type Response } from 'express';
+import express, { json as expressJson, type Express, type Request, type Response } from 'express';
 import helmet from 'helmet';
 
 import type { AppContainer } from './di/container.js';
@@ -44,7 +44,7 @@ export const createApp = (container: AppContainer): Express => {
 
   app.use(helmet({ contentSecurityPolicy: false }));
   app.use(buildCors(container));
-  app.use(express.json({ limit: REQUEST_BODY_LIMIT }));
+  app.use(expressJson({ limit: REQUEST_BODY_LIMIT }));
 
   app.get('/healthz', (_req: Request, res: Response) => {
     res.status(200).json({
@@ -52,6 +52,8 @@ export const createApp = (container: AppContainer): Express => {
       flags: container.flags.snapshot(),
     });
   });
+
+  mountAdminFlagsReload(app, container);
 
   // OpenAPI docs are mounted BEFORE appCheck/JWT — Swagger UI is meant to be
   // browsable without a token. Access is governed entirely by DOCS_ENABLED;
@@ -88,5 +90,44 @@ const buildCors = (container: AppContainer): ReturnType<typeof cors> => {
   return cors({
     origin: origins.length > 0 ? origins : false,
     credentials: true,
+  });
+};
+
+/**
+ * Serverless-friendly equivalent of `kill -HUP $PID`. SIGHUP cannot reach a
+ * Vercel function instance, so this POST endpoint asks the live FeatureFlagService
+ * to re-read its sources (env defaults + JSON file) and emit a diff log line.
+ *
+ * Gated by the `ADMIN_TOKEN` env var — when unset the endpoint deliberately
+ * 404s (fail-closed). When set, callers must present `x-admin-token: <token>`
+ * matching exactly. Returns the new snapshot on success.
+ */
+const mountAdminFlagsReload = (app: Express, container: AppContainer): void => {
+  const adminToken = container.config.values.app.adminToken;
+  if (!adminToken) {
+    app.post('/admin/flags/reload', (_req: Request, res: Response) => {
+      res.status(404).json({
+        error: { code: 'NOT_FOUND', message: 'Admin endpoints disabled' },
+      });
+    });
+    return;
+  }
+
+  app.post('/admin/flags/reload', (req: Request, res: Response) => {
+    const presented = req.header('x-admin-token');
+    if (!presented || presented !== adminToken) {
+      // Same 404 shape so probing for the endpoint with the wrong token can't
+      // distinguish between "feature off" and "wrong token".
+      return res.status(404).json({
+        error: { code: 'NOT_FOUND', message: 'Admin endpoints disabled' },
+      });
+    }
+
+    container.flags.reload();
+    container.logger.pino.info({ via: 'admin_endpoint' }, 'feature_flags_reloaded_admin');
+    return res.status(200).json({
+      status: 'reloaded',
+      flags: container.flags.snapshot(),
+    });
   });
 };

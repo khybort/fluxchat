@@ -201,7 +201,7 @@ export const ChatPage = (): React.JSX.Element => {
         setBusy(false);
       }
     },
-    [chatId, token, flags?.STREAMING_ENABLED],
+    [chatId, token, flags?.STREAMING_ENABLED, navigate, notifyChatCreated],
   );
 
   if (!chatId) {

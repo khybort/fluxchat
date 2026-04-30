@@ -6,6 +6,7 @@ export interface AppConfig {
     port: number;
     corsOrigins: string[];
     appCheckToken: string;
+    adminToken: string | undefined;
     docsEnabled: boolean;
   };
   database: {
@@ -46,6 +47,7 @@ const buildConfig = (env: Env): AppConfig => ({
       .map((s) => s.trim())
       .filter(Boolean),
     appCheckToken: env.APP_CHECK_TOKEN,
+    adminToken: env.ADMIN_TOKEN,
     docsEnabled: env.DOCS_ENABLED,
   },
   database: {

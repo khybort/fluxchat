@@ -1,4 +1,4 @@
-import type Anthropic from '@anthropic-ai/sdk';
+import type { Anthropic } from '@anthropic-ai/sdk';
 import { beforeEach, describe, expect, it } from 'vitest';
 
 import { AnthropicProvider } from '../../src/infrastructure/ai/anthropic.provider.js';

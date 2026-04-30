@@ -14,6 +14,11 @@ export const EnvSchema = z.object({
   JWT_SECRET: z.string().min(32, 'JWT_SECRET must be at least 32 characters'),
   APP_CHECK_TOKEN: z.string().min(8, 'APP_CHECK_TOKEN must be at least 8 characters'),
 
+  // Token gating the POST /admin/flags/reload kill-switch endpoint. When unset
+  // the endpoint deliberately 404s — fail-closed so a misconfigured prod box
+  // can't be poked from the outside.
+  ADMIN_TOKEN: z.string().min(16, 'ADMIN_TOKEN must be at least 16 characters').optional(),
+
   // Prime AI provider — Anthropic Claude Sonnet 4.6 (direct Anthropic API)
   ANTHROPIC_API_KEY: z.string().optional(),
   ANTHROPIC_MODEL: z.string().default('claude-sonnet-4-6'),

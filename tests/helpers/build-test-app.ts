@@ -5,9 +5,9 @@ import '../../src/modules/chat/chat.openapi.js';
 import '../../src/modules/healthz.openapi.js';
 
 import cors from 'cors';
-import express, { type Express } from 'express';
+import express, { json as expressJson, type Express } from 'express';
 import helmet from 'helmet';
-import jwt from 'jsonwebtoken';
+import { sign as jwtSign } from 'jsonwebtoken';
 
 import { InMemoryChatRepository, InMemoryMessageRepository } from './in-memory-repositories.js';
 import { InMemoryUserRepository } from './in-memory-user-repository.js';
@@ -79,9 +79,22 @@ export const buildTestApp = (
   app.use(requestLoggerMiddleware);
   app.use(helmet());
   app.use(cors());
-  app.use(express.json({ limit: REQUEST_BODY_LIMIT }));
+  app.use(expressJson({ limit: REQUEST_BODY_LIMIT }));
   app.get('/healthz', (_req, res) => {
     res.status(200).json({ status: 'ok', flags: flags.snapshot() });
+  });
+
+  // Mirror app.ts admin reload endpoint so its behavior is integration-tested.
+  const adminToken = config.values.app.adminToken;
+  app.post('/admin/flags/reload', (req, res) => {
+    const presented = req.header('x-admin-token');
+    if (!adminToken || !presented || presented !== adminToken) {
+      return res.status(404).json({
+        error: { code: 'NOT_FOUND', message: 'Admin endpoints disabled' },
+      });
+    }
+    flags.reload();
+    return res.status(200).json({ status: 'reloaded', flags: flags.snapshot() });
   });
 
   // Mirror app.ts: docs come before appCheck so they're browsable without a token.
@@ -98,7 +111,7 @@ export const buildTestApp = (
   app.use(errorHandler);
 
   const signToken = (userId: string, email = `${userId}@example.test`): string =>
-    jwt.sign({ sub: userId, email }, config.values.auth.jwtSecret);
+    jwtSign({ sub: userId, email }, config.values.auth.jwtSecret);
 
   const appCheckHeaders = (): Record<string, string> => ({
     'x-firebase-app-check': config.values.app.appCheckToken,
