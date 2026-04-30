@@ -8,6 +8,7 @@ import {
   HistoryQuerySchema,
   ListChatsQuerySchema,
 } from './chat.dto.js';
+import { featureFlagGuard } from '../../shared/middleware/feature-flag-guard.js';
 import { rateLimitPerRoute } from '../../shared/middleware/rate-limit.js';
 import { validateRequest } from '../../shared/middleware/validate-request.js';
 import type { IRateLimitStore } from '../../shared/rate-limit/rate-limit.types.js';
@@ -47,8 +48,14 @@ export const buildChatRouter = (
 
   router.post(
     '/chats/:chatId/completion',
+    // Route-specific feature-flag guard (case §6 "Important Note"). When the
+    // kill-switch flag is off, every client gets a 404 + FEATURE_DISABLED
+    // response — toggle via env or JSON file + SIGHUP, no redeploy.
+    featureFlagGuard('COMPLETION_ENABLED'),
     validateRequest({ params: ChatIdParamSchema, body: CompletionBodySchema }),
-    rateLimitPerRoute({ keyBy: 'user', store: rateLimitStore }),
+    // Per-(user, client) bucket so a user's mobile and web sessions don't
+    // share the completion quota — actual downstream consumer of req.clientType.
+    rateLimitPerRoute({ keyBy: 'user+client', store: rateLimitStore }),
     controller.completion,
   );
 

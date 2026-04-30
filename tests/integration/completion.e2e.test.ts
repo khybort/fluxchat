@@ -103,6 +103,43 @@ describe('POST /api/chats/:chatId/completion', () => {
       .send({ message: 'hi' });
     expect(res.status).toBe(404);
   });
+
+  it('returns 404 FEATURE_DISABLED when COMPLETION_ENABLED=false (route-specific guard)', async () => {
+    h.flags.set('COMPLETION_ENABLED', false);
+    const userId = 'user-1';
+    const chat = await h.chats.create({ userId, title: 't' });
+
+    const res = await request(h.app)
+      .post(`/api/chats/${chat.id}/completion`)
+      .set(h.authHeaders(userId))
+      .send({ message: 'hello' });
+
+    expect(res.status).toBe(404);
+    expect(res.body.error.code).toBe('FEATURE_DISABLED');
+  });
+
+  it('keeps separate rate-limit buckets per (user, clientType) on the completion route', async () => {
+    h.flags.set('STREAMING_ENABLED', false);
+    h.flags.set('RATE_LIMIT_PER_MINUTE', 2);
+    const userId = 'user-1';
+    const chat = await h.chats.create({ userId, title: 't' });
+
+    const send = (clientType: 'web' | 'mobile'): request.Test =>
+      request(h.app)
+        .post(`/api/chats/${chat.id}/completion`)
+        .set({ ...h.authHeaders(userId), 'x-client-type': clientType })
+        .send({ message: 'hello' });
+
+    // Burn the web bucket (2 requests = limit).
+    expect((await send('web')).status).toBe(200);
+    expect((await send('web')).status).toBe(200);
+    expect((await send('web')).status).toBe(429);
+
+    // Mobile bucket is untouched.
+    const mobileFirst = await send('mobile');
+    expect(mobileFirst.status).toBe(200);
+    expect(Number(mobileFirst.headers['x-ratelimit-remaining'])).toBe(1);
+  });
 });
 
 describe('GET /healthz', () => {

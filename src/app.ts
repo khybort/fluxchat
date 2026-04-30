@@ -21,16 +21,18 @@ import { mountDocs } from './shared/openapi/docs.middleware.js';
 /**
  * Builds the Express app without starting it. `server.ts` owns lifecycle.
  *
- * Middleware order is fixed (CLAUDE.md §11):
+ * Middleware order is fixed (CLAUDE.md §11, AppNation case §1):
  *   1. requestLogger    -> requestId + child logger
  *   2. helmet/cors/json -> security + parsing
- *   3. appCheck         -> Firebase mock
- *   4. auth             -> JWT mock, sets req.user
- *   5. clientType       -> sets req.clientType
- *   6. routes
- *   7. /docs (when DOCS_ENABLED) — mounted AFTER routes so /docs doesn't shadow anything
- *   8. notFoundHandler
- *   9. errorHandler     -> last
+ *   3. appCheck         -> Firebase mock                     (case position #1)
+ *   4. publicAuth router -> /api/auth/{register,login}       (mounted before JWT,
+ *                          cannot require a token they don't have yet)
+ *   5. authMiddleware   -> JWT verification, sets req.user   (case position #2)
+ *   6. clientType       -> sets req.clientType + rebinds log (case position #3)
+ *   7. protectedAuth + chat routers                          (case position #4: per-route validation)
+ *   8. /docs (when DOCS_ENABLED) — mounted earlier, no auth required
+ *   9. notFoundHandler
+ *  10. errorHandler     -> last                              (case position #5)
  */
 export const createApp = (container: AppContainer): Express => {
   const app = express();
@@ -62,13 +64,15 @@ export const createApp = (container: AppContainer): Express => {
   });
 
   app.use(appCheckMiddleware);
-  app.use(clientTypeMiddleware);
 
   // Public auth routes are mounted BEFORE the global JWT middleware — login and
   // register can't require a token they don't have yet. App Check still applies.
   app.use('/api/auth', container.routers.authPublic);
 
+  // Case order: App Check → Auth (JWT) → Client type. Auth runs first so the
+  // child logger we bind in clientTypeMiddleware can include req.user.id later.
   app.use(authMiddleware);
+  app.use(clientTypeMiddleware);
 
   app.use('/api/auth', container.routers.authProtected);
   app.use('/api', container.routers.chat);

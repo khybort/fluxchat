@@ -1,9 +1,18 @@
 # AppNation AI Chat — Backend + Frontend
 
+> **Repository:** https://github.com/khybort/fluxchat
+> **Live demo:**
+> - Frontend → https://fluxchat-web-ecru.vercel.app
+> - Backend → https://fluxchat-api.vercel.app
+> - Swagger UI → https://fluxchat-api.vercel.app/docs · OpenAPI 3.1 → https://fluxchat-api.vercel.app/docs.json
+> - Liveness + flag snapshot → https://fluxchat-api.vercel.app/healthz
+>
+> **Evaluator quickstart:** `make install && cp .env.example .env && make db-up && make migrate ARGS="--name init" && make verify` runs the same gate the `pre-push` hook enforces (typecheck × 2, lint × 2, full vitest suite, prisma schema check). Architecture map: [`ARCHITECTURE.md`](./ARCHITECTURE.md). Deep contract: [`CLAUDE.md`](./CLAUDE.md). Production runbook: [`DEPLOYMENT.md`](./DEPLOYMENT.md).
+
 This repo ships both halves of the case study:
 
 - **Backend** (this directory): TypeScript + Express + Prisma + PostgreSQL with runtime feature flagging, Anthropic / Groq / OpenAI providers, JWT auth, real-time SSE streaming. Architecture, design patterns, coding standards, and the verification checklist live in [`CLAUDE.md`](./CLAUDE.md).
-- **Frontend** ([`frontend/`](./frontend)): React + Vite + shadcn/ui + lucide-react + framer-motion. Animated chat UI, SSE streaming, real-time `tool_execution` cards, pagination, multi-client detection, runtime feature-flag awareness. See [`frontend/README.md`](./frontend/README.md).
+- **Frontend** ([`frontend/`](./frontend)): React + Vite + shadcn/ui + Phosphor (duotone) icons + framer-motion. Animated chat UI, SSE streaming, real-time `tool_execution` cards, pagination, multi-client detection, runtime feature-flag awareness. See [`frontend/README.md`](./frontend/README.md).
 
 Run them together with the steps below — or skip straight to [`DEPLOYMENT.md`](./DEPLOYMENT.md) for the free-tier production deploy (Neon Postgres + Vercel + GitHub Actions, triggered by every merge to `main`).
 
@@ -162,7 +171,10 @@ Same request, returns `{"message": {"role":"assistant","content":"..."}, "toolCa
 | `PAGINATION_LIMIT` | int (10–100) | `20` | Max page size for chat list and history |
 | `AI_TOOLS_ENABLED` | bool | `false` | AI may call mocked tools |
 | `CHAT_HISTORY_ENABLED` | bool | `true` | `false` ⇒ last 10 messages only |
-| `RATE_LIMIT_PER_MINUTE` | int | `60` | Per-route, per-user ceiling |
+| `RATE_LIMIT_PER_MINUTE` | int | `60` | Per-route, per-user (or per-(user, client)) ceiling |
+| `COMPLETION_ENABLED` | bool | `true` | Kill-switch — false returns `404 FEATURE_DISABLED` for the completion route |
+
+The first four flags drive **behavior** via the Strategy + Factory pair (e.g. [`CompletionStrategyFactory`](./src/modules/chat/strategies/completion-strategy.factory.ts), [`HistoryStrategyFactory`](./src/modules/chat/strategies/history-strategy.factory.ts)) — controllers stay branch-free. `COMPLETION_ENABLED` is a route-specific **middleware** kill-switch via [`featureFlagGuard`](./src/shared/middleware/feature-flag-guard.ts) — when off, the completion route short-circuits with 404 (case §6 "Important Note": route-specific feature checks).
 
 ### Toggle without redeploy
 

@@ -105,6 +105,9 @@ export class FeatureFlagService {
     if (typeof input.RATE_LIMIT_PER_MINUTE === 'number' && input.RATE_LIMIT_PER_MINUTE > 0) {
       out.RATE_LIMIT_PER_MINUTE = Math.floor(input.RATE_LIMIT_PER_MINUTE);
     }
+    if (typeof input.COMPLETION_ENABLED === 'boolean') {
+      out.COMPLETION_ENABLED = input.COMPLETION_ENABLED;
+    }
     return out;
   }
 }

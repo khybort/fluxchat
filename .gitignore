@@ -11,3 +11,10 @@ coverage
 .tsbuildinfo
 .eslintcache
 .vercel
+
+# Internal session artifacts — never belong in the submission repo.
+.agents/
+.claude/
+case.pdf
+todo.txt
+skills-lock.json

@@ -33,6 +33,7 @@ export interface AppConfig {
     AI_TOOLS_ENABLED: boolean;
     CHAT_HISTORY_ENABLED: boolean;
     RATE_LIMIT_PER_MINUTE: number;
+    COMPLETION_ENABLED: boolean;
   };
   featureFlagsFile: string | undefined;
 }
@@ -72,6 +73,7 @@ const buildConfig = (env: Env): AppConfig => ({
     AI_TOOLS_ENABLED: env.AI_TOOLS_ENABLED,
     CHAT_HISTORY_ENABLED: env.CHAT_HISTORY_ENABLED,
     RATE_LIMIT_PER_MINUTE: env.RATE_LIMIT_PER_MINUTE,
+    COMPLETION_ENABLED: env.COMPLETION_ENABLED,
   },
   featureFlagsFile: env.FEATURE_FLAGS_FILE,
 });

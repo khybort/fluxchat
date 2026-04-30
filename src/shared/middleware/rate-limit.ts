@@ -9,8 +9,14 @@ const DEFAULT_WINDOW_MS = 60_000;
 export interface RateLimitMiddlewareOptions {
   /** The pluggable backend (in-memory or Redis-backed). Required — DI provides it. */
   store: IRateLimitStore;
-  /** Where the bucket key comes from. Defaults to the authenticated user, with IP fallback. */
-  keyBy?: 'user' | 'ip';
+  /**
+   * Where the bucket key comes from.
+   *   - `'user'` (default): per-user bucket, IP fallback.
+   *   - `'ip'`: per-IP bucket regardless of auth state.
+   *   - `'user+client'`: per `(user, clientType)` pair so a user's mobile and
+   *     web sessions don't share quota. IP fallback when unauthenticated.
+   */
+  keyBy?: 'user' | 'ip' | 'user+client';
   /** Override the per-window ceiling. Defaults to the RATE_LIMIT_PER_MINUTE feature flag. */
   limit?: number;
   /** Window in milliseconds. Defaults to 60_000 (1 minute). */
@@ -23,6 +29,9 @@ const buildKey = (
 ): string => {
   if (keyBy === 'user' && req.user?.id) {
     return `user:${req.user.id}`;
+  }
+  if (keyBy === 'user+client' && req.user?.id) {
+    return `user:${req.user.id}:client:${req.clientType ?? 'web'}`;
   }
   return `ip:${req.ip ?? 'unknown'}`;
 };

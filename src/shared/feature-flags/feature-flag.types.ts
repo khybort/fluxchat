@@ -8,6 +8,8 @@ export interface FeatureFlagSchema {
   AI_TOOLS_ENABLED: boolean;
   CHAT_HISTORY_ENABLED: boolean;
   RATE_LIMIT_PER_MINUTE: number;
+  /** Kill-switch for the AI completion route. Default true. */
+  COMPLETION_ENABLED: boolean;
 }
 
 export type FlagName = keyof FeatureFlagSchema;

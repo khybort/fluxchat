@@ -36,6 +36,10 @@ export const EnvSchema = z.object({
   AI_TOOLS_ENABLED: booleanFromString.default(false),
   CHAT_HISTORY_ENABLED: booleanFromString.default(true),
   RATE_LIMIT_PER_MINUTE: z.coerce.number().int().positive().default(60),
+  // Kill-switch for the POST /api/chats/:chatId/completion endpoint. Default
+  // true; flip to false + SIGHUP to disable AI completion globally without a
+  // redeploy. Enforced by featureFlagGuard middleware on the route.
+  COMPLETION_ENABLED: booleanFromString.default(true),
 
   // OpenAPI / Swagger documentation toggle. Default ON; flip to false in prod
   // (or front it with a reverse-proxy auth) if /docs should not be public.

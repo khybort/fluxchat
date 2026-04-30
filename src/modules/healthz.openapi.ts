@@ -9,6 +9,7 @@ const FeatureFlagSnapshotSchema = z
     AI_TOOLS_ENABLED: z.boolean(),
     CHAT_HISTORY_ENABLED: z.boolean(),
     RATE_LIMIT_PER_MINUTE: z.number().int(),
+    COMPLETION_ENABLED: z.boolean(),
   })
   .openapi('FeatureFlagSnapshot');
 

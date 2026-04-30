@@ -88,9 +88,9 @@ export const buildTestApp = (
   mountDocs(app, { enabled: config.values.app.docsEnabled, logger });
 
   app.use(appCheckMiddleware);
-  app.use(clientTypeMiddleware);
   app.use('/api/auth', authRouters.publicRouter);
   app.use(authMiddleware);
+  app.use(clientTypeMiddleware);
   app.use('/api/auth', authRouters.protectedRouter);
   app.use('/api', buildChatRouter(chatController, rateLimitStore));
 
