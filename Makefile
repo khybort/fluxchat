@@ -18,6 +18,7 @@ RST  := \033[0m
         migrate migrate-deploy migrate-check migrate-shadow-check migrate-status prisma-studio prisma-generate \
         db-up db-down db-logs db-reset \
         docker-dev docker-dev-down docker-prod docker-prod-down docker-test docker-prune \
+        deploy-setup deploy-trigger deploy-watch \
         format clean
 
 ## ─── meta ───────────────────────────────────────────────────────────────────
@@ -168,6 +169,18 @@ docker-test:  ## Bring up the dedicated test database (port 5433)
 
 docker-prune:  ## DESTRUCTIVE: remove all profile containers, networks, and volumes for this project
 	docker compose --profile dev --profile prod --profile test down -v --remove-orphans
+
+## ─── deployment ─────────────────────────────────────────────────────────────
+
+deploy-setup:  ## One-shot setup: create Neon DB + link Vercel projects + push env vars + GH secrets (see DEPLOYMENT.md for prerequisites)
+	@bash scripts/deploy-setup.sh
+
+deploy-trigger:  ## Push an empty commit to main to trigger the deploy workflow
+	git commit --allow-empty -m "ci: trigger redeploy"
+	git push origin main
+
+deploy-watch:  ## Tail the latest GitHub Actions run
+	gh run watch --repo khybort/fluxchat
 
 ## ─── housekeeping ───────────────────────────────────────────────────────────
 
