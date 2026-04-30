@@ -17,6 +17,8 @@ import { Config } from '../../src/config/config.js';
 import type { IAiProvider } from '../../src/infrastructure/ai/ai.provider.js';
 import { MockAiProvider } from '../../src/infrastructure/ai/mock.provider.js';
 import { Logger } from '../../src/infrastructure/logger/logger.js';
+import { AdminController } from '../../src/modules/admin/admin.controller.js';
+import { buildAdminRouter } from '../../src/modules/admin/admin.routes.js';
 import { AuthController } from '../../src/modules/auth/auth.controller.js';
 import { buildAuthRouters } from '../../src/modules/auth/auth.routes.js';
 import { AuthService } from '../../src/modules/auth/auth.service.js';
@@ -46,8 +48,9 @@ export interface TestAppHandles {
   flags: FeatureFlagService;
   ai: IAiProvider;
   rateLimitStore: IRateLimitStore;
-  signToken: (userId: string, email?: string) => string;
+  signToken: (userId: string, email?: string, role?: 'user' | 'admin') => string;
   authHeaders: (userId: string, email?: string) => Record<string, string>;
+  adminHeaders: (userId?: string, email?: string) => Record<string, string>;
   appCheckHeaders: () => Record<string, string>;
 }
 
@@ -74,7 +77,9 @@ export const buildTestApp = (
 
   const authController = new AuthController(authService);
   const chatController = new ChatController(chatService, completionService, historyService);
+  const adminController = new AdminController(flags);
   const authRouters = buildAuthRouters(authController, rateLimitStore);
+  const adminRouter = buildAdminRouter(adminController, rateLimitStore);
 
   const app = express();
   app.disable('x-powered-by');
@@ -92,13 +97,13 @@ export const buildTestApp = (
     const presented = req.header('x-admin-token');
     return Boolean(adminToken && presented && presented === adminToken);
   };
-  app.post('/admin/flags/reload', (req, res) => {
+  app.post('/admin/flags/reload', async (req, res) => {
     if (!requireAdmin(req)) {
       return res.status(404).json({
         error: { code: 'NOT_FOUND', message: 'Admin endpoints disabled' },
       });
     }
-    flags.reload();
+    await flags.reload();
     return res.status(200).json({ status: 'reloaded', flags: flags.snapshot() });
   });
   app.get('/admin/flags', (req, res) => {
@@ -121,14 +126,19 @@ export const buildTestApp = (
   app.use(authMiddleware);
   app.use(clientTypeMiddleware);
   app.use('/api/auth', authRouters.protectedRouter);
+  app.use('/api/admin', adminRouter);
   app.use('/api', buildChatRouter(chatController, rateLimitStore));
 
   app.use(notFoundHandler);
   app.use(errorHandler);
 
-  const signToken = (userId: string, email = `${userId}@example.test`): string =>
+  const signToken = (
+    userId: string,
+    email = `${userId}@example.test`,
+    role: 'user' | 'admin' = 'user',
+  ): string =>
     // eslint-disable-next-line import/no-named-as-default-member
-    jwt.sign({ sub: userId, email }, config.values.auth.jwtSecret);
+    jwt.sign({ sub: userId, email, role }, config.values.auth.jwtSecret);
 
   const appCheckHeaders = (): Record<string, string> => ({
     'x-firebase-app-check': config.values.app.appCheckToken,
@@ -137,6 +147,11 @@ export const buildTestApp = (
 
   const authHeaders = (userId: string, email?: string): Record<string, string> => ({
     Authorization: `Bearer ${signToken(userId, email)}`,
+    ...appCheckHeaders(),
+  });
+
+  const adminHeaders = (userId = 'admin-user', email?: string): Record<string, string> => ({
+    Authorization: `Bearer ${signToken(userId, email, 'admin')}`,
     ...appCheckHeaders(),
   });
 
@@ -150,6 +165,7 @@ export const buildTestApp = (
     rateLimitStore,
     signToken,
     authHeaders,
+    adminHeaders,
     appCheckHeaders,
   };
 };

@@ -35,7 +35,7 @@ describe('FeatureFlagService', () => {
     }
   });
 
-  it('reload picks up file changes without restart', () => {
+  it('reload picks up file changes without restart', async () => {
     const filePath = join(tmpdir(), `flags-${Date.now()}-reload.json`);
     writeFileSync(filePath, JSON.stringify({ STREAMING_ENABLED: true }));
     process.env.FEATURE_FLAGS_FILE = filePath;
@@ -45,7 +45,7 @@ describe('FeatureFlagService', () => {
       expect(service.get('STREAMING_ENABLED')).toBe(true);
 
       writeFileSync(filePath, JSON.stringify({ STREAMING_ENABLED: false }));
-      service.reload();
+      await service.reload();
       expect(service.get('STREAMING_ENABLED')).toBe(false);
     } finally {
       unlinkSync(filePath);

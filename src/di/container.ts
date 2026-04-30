@@ -9,7 +9,10 @@ import { GroqProvider } from '../infrastructure/ai/groq.provider.js';
 import { MockAiProvider } from '../infrastructure/ai/mock.provider.js';
 import { OpenAiProvider } from '../infrastructure/ai/openai.provider.js';
 import { PrismaService } from '../infrastructure/database/prisma.service.js';
+import { PrismaFlagOverrideStore } from '../infrastructure/feature-flags/prisma-override-store.js';
 import { Logger } from '../infrastructure/logger/logger.js';
+import { AdminController } from '../modules/admin/admin.controller.js';
+import { buildAdminRouter } from '../modules/admin/admin.routes.js';
 import { AuthController } from '../modules/auth/auth.controller.js';
 import { buildAuthRouters } from '../modules/auth/auth.routes.js';
 import { AuthService } from '../modules/auth/auth.service.js';
@@ -57,11 +60,13 @@ export interface AppContainer {
   controllers: {
     chat: ChatController;
     auth: AuthController;
+    admin: AdminController;
   };
   routers: {
     chat: Router;
     authPublic: Router;
     authProtected: Router;
+    admin: Router;
   };
   /** Resources opened by the container (e.g. Redis client) for orderly shutdown. */
   shutdown: () => Promise<void>;
@@ -163,6 +168,11 @@ export const buildContainer = (): AppContainer => {
   const prisma = PrismaService.getInstance();
   const flags = FeatureFlagService.getInstance();
 
+  // Wire the DB-backed flag override store. server.ts then awaits the first
+  // `flags.reload()` so the in-memory state has DB rows merged before the
+  // HTTP server starts accepting requests.
+  flags.configureOverrideStore(new PrismaFlagOverrideStore(prisma));
+
   const builders = buildProviderBuilders(config, logger);
   const prime = buildPrimeProvider(builders, logger);
   const fast = buildFastProvider(builders, logger);
@@ -192,8 +202,10 @@ export const buildContainer = (): AppContainer => {
   // Controllers + routers.
   const authController = new AuthController(authService);
   const chatController = new ChatController(chatService, completionService, historyService);
+  const adminController = new AdminController(flags);
   const chatRouter = buildChatRouter(chatController, rateLimit.store);
   const authRouters = buildAuthRouters(authController, rateLimit.store);
+  const adminRouter = buildAdminRouter(adminController, rateLimit.store);
 
   return {
     config,
@@ -202,11 +214,12 @@ export const buildContainer = (): AppContainer => {
     flags,
     rateLimitStore: rateLimit.store,
     ai: { prime, fast },
-    controllers: { chat: chatController, auth: authController },
+    controllers: { chat: chatController, auth: authController, admin: adminController },
     routers: {
       chat: chatRouter,
       authPublic: authRouters.publicRouter,
       authProtected: authRouters.protectedRouter,
+      admin: adminRouter,
     },
     shutdown: rateLimit.shutdown,
   };

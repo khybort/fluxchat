@@ -77,6 +77,7 @@ export const createApp = (container: AppContainer): Express => {
   app.use(clientTypeMiddleware);
 
   app.use('/api/auth', container.routers.authProtected);
+  app.use('/api/admin', container.routers.admin);
   app.use('/api', container.routers.chat);
 
   app.use(notFoundHandler);
@@ -131,9 +132,9 @@ const mountAdminFlagsReload = (app: Express, container: AppContainer): void => {
     return true;
   };
 
-  app.post('/admin/flags/reload', (req: Request, res: Response) => {
+  app.post('/admin/flags/reload', async (req: Request, res: Response) => {
     if (!requireAdminToken(req, res)) return;
-    container.flags.reload();
+    await container.flags.reload();
     container.logger.pino.info({ via: 'admin_endpoint' }, 'feature_flags_reloaded_admin');
     res.status(200).json({
       status: 'reloaded',

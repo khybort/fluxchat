@@ -246,6 +246,28 @@ curl -s http://localhost:3000/healthz | jq .flags
 curl -s -H "x-admin-token: $ADMIN_TOKEN" http://localhost:3000/admin/flags | jq
 ```
 
+### Admin UI (`/admin/flags`)
+
+Admin-role users see a "Feature flags" entry in the user dropdown that opens
+[`/admin/flags`](https://fluxchat-web-ecru.vercel.app/admin/flags) — a
+dashboard for editing flag definitions live, no redeploy required:
+
+- Toggle defaults, drag the rollout-percentage slider, add/remove segment rules.
+- "Test as user" panel below the editor evaluates against a synthetic
+  `{ userId, userRole, clientType }` context server-side, so the bucket-hash
+  semantics stay single-source-of-truth.
+- "Reload" button triggers `POST /api/admin/flags/reload` — pulls the latest
+  state from the DB + file + env into the live in-memory snapshot.
+
+Edits persist in the `feature_flag_overrides` Postgres table (one row per
+flag, JSON `definition` + `updatedBy` audit). The DB layer wins over the
+JSON file, which wins over env defaults — so an admin UI edit always beats
+a static deploy artifact.
+
+To grant admin: update the `users.role` column to `admin` in Postgres
+(future: an admin "manage users" surface). The JWT mints with the role
+baked in on next login.
+
 ### Multi-instance consistency (known limitation)
 
 Flag state lives in-process. On Vercel serverless this means each warm lambda instance holds its own copy. SIGHUP reaches the process that received it; `POST /admin/flags/reload` reaches the one lambda that handled the request. **Other warm instances see the change either on their own next reload trigger or on cold start.** For most flags this is fine — kill-switches converge in seconds as instances recycle, and low-traffic free-tier deploys typically have one warm instance.

@@ -5,6 +5,7 @@ import { getMe } from '@/api/auth';
 import { ApiError } from '@/api/client';
 import { AppShell } from '@/components/app-shell';
 import { Toaster } from '@/components/ui/sonner';
+import { AdminFlagsPage } from '@/pages/admin-flags-page';
 import { ChatPage } from '@/pages/chat-page';
 import { LoginPage } from '@/pages/auth/login-page';
 import { RegisterPage } from '@/pages/auth/register-page';
@@ -61,6 +62,19 @@ const PublicOnlyRoute = ({ children }: { children: ReactNode }): React.JSX.Eleme
   return <>{children}</>;
 };
 
+/**
+ * Admin-only route guard. Sits inside ProtectedRoute, so by the time it
+ * runs the JWT-validated user is already in the auth store. Non-admins get
+ * bounced to /chat (no flash of the admin UI).
+ */
+const AdminRoute = ({ children }: { children: ReactNode }): React.JSX.Element => {
+  const user = useAuthStore((s) => s.user);
+  if (!user || user.role !== 'admin') {
+    return <Navigate to="/chat" replace />;
+  }
+  return <>{children}</>;
+};
+
 export const App = (): React.JSX.Element => (
   <Router>
     <Routes>
@@ -89,6 +103,14 @@ export const App = (): React.JSX.Element => (
       >
         <Route path="/chat" element={<ChatPage />} />
         <Route path="/chat/:chatId" element={<ChatPage />} />
+        <Route
+          path="/admin/flags"
+          element={
+            <AdminRoute>
+              <AdminFlagsPage />
+            </AdminRoute>
+          }
+        />
       </Route>
       <Route path="*" element={<Navigate to="/chat" replace />} />
     </Routes>

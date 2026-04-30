@@ -1,6 +1,7 @@
 import { motion } from 'framer-motion';
 import {
   CaretUpDownIcon,
+  FlagIcon,
   ListIcon,
   PulseIcon,
   SignOutIcon,
@@ -8,7 +9,7 @@ import {
   XIcon,
 } from '@phosphor-icons/react';
 import { useEffect, useState } from 'react';
-import { Outlet, useNavigate } from 'react-router-dom';
+import { Link, Outlet, useNavigate } from 'react-router-dom';
 
 import { getHealthz } from '@/api/chat';
 import type { FeatureFlagsSnapshot } from '@/api/types';
@@ -146,6 +147,14 @@ export const AppShell = (): React.JSX.Element => {
                   <span className="text-xs font-normal text-muted-foreground">{user?.email}</span>
                 </DropdownMenuLabel>
                 <DropdownMenuSeparator />
+                {user?.role === 'admin' ? (
+                  <DropdownMenuItem asChild>
+                    <Link to="/admin/flags" className="cursor-pointer">
+                      <FlagIcon className="h-4 w-4" weight="bold" />
+                      Feature flags
+                    </Link>
+                  </DropdownMenuItem>
+                ) : null}
                 <DropdownMenuItem onClick={handleLogout} className="text-destructive">
                   <SignOutIcon className="h-4 w-4" weight="bold" />
                   Sign out

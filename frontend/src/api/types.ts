@@ -1,7 +1,42 @@
+export type UserRole = 'user' | 'admin';
+export type ClientType = 'web' | 'mobile' | 'desktop';
+
 export interface AuthUser {
   id: string;
   email: string;
   name: string | null;
+  role?: UserRole;
+}
+
+export interface FlagContext {
+  userId?: string;
+  clientType?: ClientType;
+  userRole?: UserRole;
+  plan?: 'free' | 'pro' | 'enterprise';
+}
+
+export interface FlagRule {
+  if: FlagContext;
+  value: boolean | number;
+}
+
+export interface FlagDefinition {
+  default: boolean | number;
+  rules?: FlagRule[];
+  percentage?: number;
+}
+
+export type FlagName =
+  | 'STREAMING_ENABLED'
+  | 'PAGINATION_LIMIT'
+  | 'AI_TOOLS_ENABLED'
+  | 'CHAT_HISTORY_ENABLED'
+  | 'RATE_LIMIT_PER_MINUTE'
+  | 'COMPLETION_ENABLED';
+
+export interface AdminFlagsResponse {
+  definitions: Record<FlagName, FlagDefinition>;
+  snapshot: FeatureFlagsSnapshot;
 }
 
 export interface AuthResponse {
@@ -79,6 +114,7 @@ export interface FeatureFlagsSnapshot {
   AI_TOOLS_ENABLED: boolean;
   CHAT_HISTORY_ENABLED: boolean;
   RATE_LIMIT_PER_MINUTE: number;
+  COMPLETION_ENABLED: boolean;
 }
 
 export interface HealthzResponse {

@@ -19,6 +19,11 @@ const main = async (): Promise<void> => {
   logger.pino.info({ env: config.values.app.nodeEnv }, 'database_connected');
 
   const container = buildContainer();
+  // Prisma is up + the override store is wired in buildContainer(). Pull DB
+  // overrides into the in-memory state before we start serving requests so
+  // the very first /api/chats sees the right flag values.
+  await container.flags.reload();
+
   const app = createApp(container);
   const server = app.listen(config.values.app.port, () => {
     logger.pino.info({ port: config.values.app.port }, 'server_listening');
@@ -53,7 +58,9 @@ const main = async (): Promise<void> => {
   });
   process.on('SIGHUP', () => {
     logger.pino.info('SIGHUP_received_reloading_flags');
-    flags.reload();
+    void flags.reload().catch((err: unknown) => {
+      logger.pino.error({ err }, 'feature_flags_reload_failed');
+    });
   });
   process.on('uncaughtException', (error) => {
     logger.pino.fatal({ err: error }, 'uncaught_exception');

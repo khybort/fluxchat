@@ -22,13 +22,16 @@ export type FlagValue = FeatureFlagSchema[FlagName];
  * Per-evaluation context. Every field is optional so call sites can fill
  * what they have; missing fields are wildcards in rule matching. The richer
  * the context, the more selective the rules can be.
+ *
+ * Each field is `T | undefined` (rather than just `?:`) so zod-inferred DTOs
+ * with `.optional()` are assignable under `exactOptionalPropertyTypes: true`.
  */
 export interface FlagContext {
-  userId?: string;
-  clientType?: ClientType;
-  userRole?: UserRole;
+  userId?: string | undefined;
+  clientType?: ClientType | undefined;
+  userRole?: UserRole | undefined;
   /** Reserved for a future subscription-tier hook. Defaults to 'free' when omitted. */
-  plan?: 'free' | 'pro' | 'enterprise';
+  plan?: 'free' | 'pro' | 'enterprise' | undefined;
 }
 
 /**

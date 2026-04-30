@@ -9,6 +9,7 @@ import type {
   FlagRule,
   FlagValue,
 } from './feature-flag.types.js';
+import { type IFlagOverrideStore, InMemoryFlagOverrideStore } from './override-store.js';
 import { Config } from '../../config/config.js';
 import { Logger } from '../../infrastructure/logger/logger.js';
 
@@ -40,12 +41,13 @@ export class FeatureFlagService {
   private readonly defaults: FlagDefinitions;
   private readonly filePath: string | undefined;
   private readonly logger: Logger;
+  private overrideStore: IFlagOverrideStore = new InMemoryFlagOverrideStore();
 
   private constructor(config: Config, logger: Logger) {
     this.logger = logger;
     this.defaults = wrapBareDefaults(config.values.featureFlagDefaults);
     this.filePath = config.values.featureFlagsFile;
-    this.flags = this.load();
+    this.flags = this.loadStaticSources();
   }
 
   public static getInstance(): FeatureFlagService {
@@ -61,6 +63,15 @@ export class FeatureFlagService {
   /** Test-only. */
   public static resetForTesting(): void {
     FeatureFlagService.instance = null;
+  }
+
+  /**
+   * DI hook — the composition root injects the production Prisma-backed store
+   * after Prisma connects. Tests can swap in their own store. Call this BEFORE
+   * the first {@link reload} so DB overrides land in the initial state.
+   */
+  public configureOverrideStore(store: IFlagOverrideStore): void {
+    this.overrideStore = store;
   }
 
   /**
@@ -87,10 +98,24 @@ export class FeatureFlagService {
     this.flags = { ...this.flags, [name]: { default: value } };
   }
 
-  /** Re-read sources. Call on SIGHUP for zero-redeploy flag updates. */
-  public reload(): void {
+  /**
+   * Re-read all sources (env + JSON file + DB overrides). Call on SIGHUP, on
+   * boot once Prisma has connected, and after admin UI edits land. Async
+   * because DB lookups are async; the SIGHUP handler / admin endpoint should
+   * `await` it (or `.catch` and log).
+   */
+  public async reload(): Promise<void> {
     const previous = this.flags;
-    this.flags = this.load();
+    const fromFile = this.readFile();
+    let fromDb: Partial<FlagDefinitions> = {};
+    try {
+      const dbRows = await this.overrideStore.loadAll();
+      fromDb = this.parseDefinitions(dbRows);
+    } catch (err) {
+      this.logger.pino.error({ err }, 'feature_flag_db_overrides_failed');
+    }
+    this.flags = { ...this.defaults, ...fromFile, ...fromDb };
+
     const changed: Partial<FeatureFlagSchema> = {};
     for (const key of Object.keys(this.flags) as FlagName[]) {
       const before = previous[key]?.default;
@@ -123,7 +148,33 @@ export class FeatureFlagService {
     return JSON.parse(JSON.stringify(this.flags)) as FlagDefinitions;
   }
 
-  private load(): FlagDefinitions {
+  /**
+   * Admin-only. Persists a new definition for `name` in the override store
+   * and triggers a reload so all subsequent `get()` calls see the new value.
+   * Throws if the definition fails parsing — controller maps that to 400.
+   */
+  public async setOverride(name: FlagName, raw: unknown, updatedBy: string): Promise<void> {
+    // Validate up front so we never persist garbage.
+    const parsed = this.parseDefinition(name, raw);
+    if (!parsed) {
+      throw new Error('Invalid flag definition');
+    }
+    await this.overrideStore.upsert(name, raw, updatedBy);
+    await this.reload();
+  }
+
+  /** Admin-only. Removes the override for `name` (falls back to file/env). */
+  public async clearOverride(name: FlagName): Promise<void> {
+    await this.overrideStore.remove(name);
+    await this.reload();
+  }
+
+  /**
+   * Synchronous bootstrap path — env defaults + JSON file. DB overrides are
+   * merged in by {@link reload} once the override store is configured.
+   * Constructor uses this so `getInstance()` stays sync (no top-level await).
+   */
+  private loadStaticSources(): FlagDefinitions {
     const fromFile = this.readFile();
     return { ...this.defaults, ...fromFile };
   }

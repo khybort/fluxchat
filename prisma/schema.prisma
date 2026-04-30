@@ -61,6 +61,20 @@ model Chat {
   @@map("chats")
 }
 
+/// Admin-edited overrides for the feature-flag system. One row per flag,
+/// upserted by name. `definition` carries the rich-form JSON (default + rules
+/// + percentage). DB takes priority over the JSON file at FEATURE_FLAGS_FILE
+/// so a UI edit always wins over a static deploy artifact.
+model FeatureFlagOverride {
+  name       String   @id
+  definition Json
+  updatedBy  String
+  updatedAt  DateTime @updatedAt
+  createdAt  DateTime @default(now())
+
+  @@map("feature_flag_overrides")
+}
+
 model Message {
   id               String      @id @default(uuid())
   chatId           String
