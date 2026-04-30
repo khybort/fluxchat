@@ -1,5 +1,5 @@
 import { motion } from 'framer-motion';
-import { Flag, Hash } from 'lucide-react';
+import { Flag, Hash } from '@phosphor-icons/react';
 
 import type { FeatureFlagsSnapshot } from '@/api/types';
 import { Badge } from '@/components/ui/badge';
@@ -28,7 +28,7 @@ export const FeatureFlagsPanel = ({ flags }: FeatureFlagsPanelProps): React.JSX.
     className="rounded-lg border bg-card/60 p-3"
   >
     <div className="mb-2 flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
-      <Flag className="h-3 w-3" />
+      <Flag className="h-3 w-3" weight="duotone" />
       Runtime feature flags
     </div>
     {!flags ? (

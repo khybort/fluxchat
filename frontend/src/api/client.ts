@@ -40,6 +40,19 @@ export const buildHeaders = (token?: string | null, extra?: HeadersInit): Header
 
 export const apiUrl = (path: string): string => `${API_URL}${path}`;
 
+const FALLBACK_BY_STATUS: Record<number, string> = {
+  400: 'That request looked off — please double-check the form and try again.',
+  401: 'You need to sign in again to continue.',
+  403: 'You don’t have access to that.',
+  404: 'We couldn’t find what you were looking for.',
+  409: 'That conflicts with something that already exists.',
+  422: 'Some fields didn’t pass validation — please review and try again.',
+  429: 'You’re going a bit fast — please wait a moment and try again.',
+  500: 'Something went wrong on our end. Please try again in a moment.',
+  502: 'The service is unreachable right now. Please try again shortly.',
+  503: 'The service is temporarily unavailable. Please try again shortly.',
+};
+
 const parseError = async (res: Response): Promise<ApiError> => {
   let body: ApiErrorBody | null = null;
   try {
@@ -48,7 +61,13 @@ const parseError = async (res: Response): Promise<ApiError> => {
     /* ignore */
   }
   const code = body?.error?.code ?? `HTTP_${res.status}`;
-  const message = body?.error?.message ?? res.statusText ?? 'Request failed';
+  const rawMessage = body?.error?.message?.trim();
+  const message =
+    rawMessage && rawMessage.length > 0
+      ? rawMessage
+      : (FALLBACK_BY_STATUS[res.status] ??
+        res.statusText ??
+        'Something went wrong, please try again.');
   return new ApiError(res.status, code, message, body?.error?.details);
 };
 

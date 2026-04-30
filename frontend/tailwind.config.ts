@@ -45,6 +45,11 @@ export default {
           DEFAULT: 'hsl(var(--card))',
           foreground: 'hsl(var(--card-foreground))',
         },
+        brand: {
+          from: 'hsl(var(--brand-from))',
+          via: 'hsl(var(--brand-via))',
+          to: 'hsl(var(--brand-to))',
+        },
       },
       borderRadius: {
         lg: 'var(--radius)',
@@ -68,12 +73,22 @@ export default {
           '0%, 100%': { opacity: '1' },
           '50%': { opacity: '0.6' },
         },
+        'aurora': {
+          '0%, 100%': { transform: 'translate3d(0,0,0) scale(1)' },
+          '50%': { transform: 'translate3d(2%, -3%, 0) scale(1.08)' },
+        },
+        'glow-pulse': {
+          '0%, 100%': { boxShadow: '0 0 30px -6px hsl(var(--primary) / 0.45)' },
+          '50%': { boxShadow: '0 0 40px -2px hsl(var(--primary) / 0.7)' },
+        },
       },
       animation: {
         'accordion-down': 'accordion-down 0.2s ease-out',
         'accordion-up': 'accordion-up 0.2s ease-out',
         'shimmer': 'shimmer 2s linear infinite',
         'pulse-soft': 'pulse-soft 1.5s ease-in-out infinite',
+        'aurora': 'aurora 16s ease-in-out infinite',
+        'glow-pulse': 'glow-pulse 3.2s ease-in-out infinite',
       },
     },
   },

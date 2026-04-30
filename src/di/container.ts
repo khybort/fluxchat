@@ -105,14 +105,19 @@ const buildProviderBuilders = (config: Config, logger: Logger): Partial<Provider
 };
 
 const buildPrimeProvider = (builders: Partial<ProviderBuilders>, logger: Logger): IAiProvider => {
-  // Priority order per architecture spec: Anthropic → OpenAI → Groq → Mock.
+  // Chat completion path: Anthropic → Groq fallback when both keys exist
+  // (quality primary + resilience fallback). Otherwise pick the first
+  // configured provider, finally a mock when nothing is set.
+  if (builders.anthropic && builders.groq) {
+    return new FallbackAiProvider(builders.anthropic(), builders.groq(), logger, 'anthropic->groq');
+  }
   if (builders.anthropic) return builders.anthropic();
   if (builders.openai) {
-    logger.pino.warn('ANTHROPIC_API_KEY missing; falling back to OpenAI for the chat (prime) path');
+    logger.pino.warn('ANTHROPIC_API_KEY missing; using OpenAI for the chat (prime) path');
     return builders.openai();
   }
   if (builders.groq) {
-    logger.pino.warn('ANTHROPIC_API_KEY missing; falling back to Groq for the chat (prime) path');
+    logger.pino.warn('ANTHROPIC_API_KEY missing; using Groq for the chat (prime) path');
     return builders.groq();
   }
   logger.pino.warn('no_ai_keys_configured_using_mock_provider');

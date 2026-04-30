@@ -1,4 +1,4 @@
-import { Send, StopCircle } from 'lucide-react';
+import { PaperPlaneTilt, Stop } from '@phosphor-icons/react';
 import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from 'react';
 
 import { Button } from '@/components/ui/button';
@@ -53,12 +53,13 @@ export const Composer = ({
   return (
     <form
       onSubmit={handleFormSubmit}
-      className="border-t bg-card/30 px-4 py-3 backdrop-blur md:px-6"
+      className="border-t border-border/40 bg-card/20 px-4 py-3 backdrop-blur-xl md:px-6"
     >
       <div
         className={cn(
-          'group relative flex items-end gap-2 rounded-2xl border bg-card p-2 shadow-sm transition-all',
-          'focus-within:border-primary/40 focus-within:shadow-md',
+          'group relative flex items-end gap-2 rounded-2xl border border-border/60 bg-card/60 p-2 shadow-sm transition-all duration-300',
+          'focus-within:border-primary/50 focus-within:bg-card/80',
+          'focus-within:shadow-[0_0_0_1px_hsl(var(--primary)/0.35),0_0_30px_-6px_hsl(var(--primary)/0.55)]',
           disabled && 'opacity-60',
         )}
       >
@@ -80,16 +81,17 @@ export const Composer = ({
             onClick={onCancel}
             className="rounded-xl text-destructive hover:bg-destructive/10"
           >
-            <StopCircle className="h-5 w-5" />
+            <Stop className="h-5 w-5" weight="bold" />
           </Button>
         ) : (
           <Button
             type="submit"
             size="icon"
+            variant="glow"
             disabled={disabled || busy || !value.trim()}
             className="rounded-xl transition-transform group-focus-within:scale-105"
           >
-            <Send className="h-4 w-4" />
+            <PaperPlaneTilt className="h-4 w-4" weight="duotone" />
           </Button>
         )}
       </div>

@@ -1,4 +1,4 @@
-import { Loader2, UserPlus } from 'lucide-react';
+import { CircleNotch, UserPlus } from '@phosphor-icons/react';
 import { useState, type FormEvent } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
@@ -93,12 +93,12 @@ export const RegisterPage = (): React.JSX.Element => {
             required
           />
         </div>
-        <Button type="submit" className="w-full" disabled={submitting}>
+        <Button type="submit" variant="glow" className="w-full" disabled={submitting}>
           {submitting ? (
-            <Loader2 className="h-4 w-4 animate-spin" />
+            <CircleNotch className="h-4 w-4 animate-spin" weight="bold" />
           ) : (
             <>
-              <UserPlus className="h-4 w-4" />
+              <UserPlus className="h-4 w-4" weight="duotone" />
               Create account
             </>
           )}

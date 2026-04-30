@@ -1,5 +1,5 @@
 import { AnimatePresence, motion } from 'framer-motion';
-import { Bot, MessagesSquare, Sparkles } from 'lucide-react';
+import { ChatsCircle, Robot, Sparkle } from '@phosphor-icons/react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { toast } from 'sonner';
@@ -210,10 +210,10 @@ export const ChatPage = (): React.JSX.Element => {
 
   return (
     <div className="flex h-full flex-col">
-      <div className="flex items-center justify-between gap-2 border-b bg-card/20 px-4 py-3 backdrop-blur md:px-6">
+      <div className="relative flex items-center justify-between gap-2 border-b border-border/40 bg-card/20 px-4 py-3 backdrop-blur-xl md:px-6">
         <div className="flex items-center gap-2">
-          <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10 text-primary">
-            <Bot className="h-4 w-4" />
+          <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-brand-from/30 via-brand-via/20 to-brand-to/30 text-primary shadow-[0_0_18px_-6px_hsl(var(--primary)/0.5)]">
+            <Robot className="h-4 w-4" weight="duotone" />
           </span>
           <div>
             <p className="text-sm font-semibold">Conversation</p>
@@ -225,14 +225,21 @@ export const ChatPage = (): React.JSX.Element => {
           </div>
         </div>
         {pending ? (
-          <Badge variant="secondary" className="gap-1.5 capitalize">
+          <Badge
+            variant="secondary"
+            className="gap-1.5 border border-primary/20 bg-primary/10 capitalize"
+          >
             <span className="relative flex h-2 w-2">
-              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-primary opacity-60" />
-              <span className="relative inline-flex h-2 w-2 rounded-full bg-primary" />
+              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-gradient-to-r from-brand-from via-brand-via to-brand-to opacity-70" />
+              <span className="relative inline-flex h-2 w-2 rounded-full bg-gradient-to-br from-brand-from to-brand-via" />
             </span>
             {pending.phase}
           </Badge>
         ) : null}
+        <span
+          aria-hidden
+          className="pointer-events-none absolute inset-x-4 -bottom-px h-px bg-gradient-to-r from-transparent via-primary/25 to-transparent"
+        />
       </div>
 
       <ScrollArea className="flex-1" viewportRef={scrollRef}>
@@ -303,11 +310,13 @@ const ConversationEmpty = (): React.JSX.Element => (
     animate={{ opacity: 1, y: 0 }}
     className="flex flex-col items-center gap-3 py-16 text-center"
   >
-    <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/10 text-primary">
-      <Sparkles className="h-5 w-5" />
+    <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-brand-from/25 via-brand-via/15 to-brand-to/25 text-primary shadow-[0_0_30px_-6px_hsl(var(--brand-via)/0.5)]">
+      <Sparkle className="h-6 w-6" weight="duotone" />
     </div>
     <div>
-      <p className="text-base font-semibold">Start the conversation</p>
+      <p className="text-lg font-semibold">
+        <span className="text-brand-gradient">Start the conversation</span>
+      </p>
       <p className="mt-1 text-sm text-muted-foreground">
         Ask anything. Try “What’s the weather in Istanbul?” when AI tools are enabled.
       </p>
@@ -322,32 +331,40 @@ interface NewChatPanelProps {
 }
 
 const NewChatPanel = ({ onSubmit, busy, flags }: NewChatPanelProps): React.JSX.Element => (
-  <div className="flex h-full flex-col">
-    <div className="flex flex-1 items-center justify-center px-4">
+  <div className="relative flex h-full flex-col">
+    <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+      <div className="aurora-orb h-[26rem] w-[26rem] animate-aurora bg-brand-via/15" />
+    </div>
+    <div className="relative flex flex-1 items-center justify-center px-4">
       <motion.div
         initial={{ opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.4 }}
         className="max-w-lg px-2 text-center"
       >
-        <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-primary/10 text-primary">
-          <MessagesSquare className="h-6 w-6" />
+        <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-brand-from via-brand-via to-brand-to text-primary-foreground shadow-[0_0_50px_-4px_hsl(var(--brand-via)/0.65)]">
+          <ChatsCircle className="h-7 w-7" weight="duotone" />
         </div>
-        <h2 className="text-xl font-semibold">Start a new conversation</h2>
-        <p className="mt-2 text-sm text-muted-foreground">
+        <h2 className="text-3xl font-semibold tracking-tight">
+          <span className="text-brand-gradient">Start a new conversation</span>
+        </h2>
+        <p className="mt-3 text-sm text-muted-foreground">
           Type a message below — we&apos;ll spin up a fresh chat for you.
         </p>
         <div className="mt-6 flex flex-wrap items-center justify-center gap-2">
           {flags?.STREAMING_ENABLED ? (
-            <Badge variant="secondary" className="gap-1.5">
-              <span className="h-1.5 w-1.5 rounded-full bg-primary" />
+            <Badge variant="secondary" className="gap-1.5 border border-primary/20 bg-primary/10">
+              <span className="h-1.5 w-1.5 rounded-full bg-gradient-to-br from-brand-from to-brand-via" />
               Streaming on
             </Badge>
           ) : (
             <Badge variant="outline">Streaming off</Badge>
           )}
           {flags?.AI_TOOLS_ENABLED ? (
-            <Badge variant="secondary" className="gap-1.5">
+            <Badge
+              variant="secondary"
+              className="gap-1.5 border border-amber-400/30 bg-amber-400/10 text-amber-200"
+            >
               <span className="h-1.5 w-1.5 rounded-full bg-amber-400" />
               Tools available
             </Badge>

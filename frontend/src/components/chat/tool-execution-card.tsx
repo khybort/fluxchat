@@ -1,5 +1,5 @@
 import { AnimatePresence, motion } from 'framer-motion';
-import { ChevronDown, Wrench } from 'lucide-react';
+import { CaretDown, Wrench } from '@phosphor-icons/react';
 import { useState } from 'react';
 
 import type { ToolCall } from '@/api/types';
@@ -18,15 +18,19 @@ export const ToolExecutionCard = ({ tool }: ToolExecutionCardProps): React.JSX.E
       initial={{ opacity: 0, scale: 0.97, y: 8 }}
       animate={{ opacity: 1, scale: 1, y: 0 }}
       transition={{ duration: 0.25 }}
-      className="my-1 ml-11 max-w-[85%] overflow-hidden rounded-xl border bg-gradient-to-br from-amber-500/5 via-transparent to-transparent shadow-sm"
+      className="relative my-1 ml-11 max-w-[85%] overflow-hidden rounded-xl border border-amber-500/20 bg-gradient-to-br from-amber-500/5 via-transparent to-transparent shadow-sm"
     >
+      <span
+        aria-hidden
+        className="pointer-events-none absolute inset-y-0 left-0 w-0.5 bg-gradient-to-b from-amber-300 via-amber-400 to-amber-500/40"
+      />
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs transition-colors hover:bg-amber-500/5"
+        className="flex w-full items-center gap-2 px-3 py-2 pl-3.5 text-left text-xs transition-colors hover:bg-amber-500/5"
       >
-        <span className="flex h-6 w-6 items-center justify-center rounded-md bg-amber-500/10 text-amber-300">
-          <Wrench className="h-3 w-3" />
+        <span className="flex h-6 w-6 items-center justify-center rounded-md bg-amber-500/15 text-amber-300">
+          <Wrench className="h-3 w-3" weight="duotone" />
         </span>
         <span className="flex-1 truncate font-medium text-amber-200">
           Tool used: <span className="font-mono">{tool.name}</span>
@@ -36,7 +40,7 @@ export const ToolExecutionCard = ({ tool }: ToolExecutionCardProps): React.JSX.E
           transition={{ duration: 0.2 }}
           className="text-muted-foreground"
         >
-          <ChevronDown className="h-3.5 w-3.5" />
+          <CaretDown className="h-3.5 w-3.5" weight="bold" />
         </motion.span>
       </button>
 

@@ -1,5 +1,11 @@
 import { AnimatePresence, motion } from 'framer-motion';
-import { ChevronDown, Loader2, MessageSquare, MessageSquarePlus, Search } from 'lucide-react';
+import {
+  CaretDown,
+  ChatCircle,
+  ChatTeardropDots,
+  CircleNotch,
+  MagnifyingGlass,
+} from '@phosphor-icons/react';
 import { useEffect, useMemo, useState } from 'react';
 import { NavLink, useNavigate, useParams } from 'react-router-dom';
 import { toast } from 'sonner';
@@ -99,11 +105,14 @@ export const ChatSidebar = ({ onNavigate }: ChatSidebarProps): React.JSX.Element
     <div className="flex flex-1 flex-col overflow-hidden">
       <div className="space-y-2 px-3 py-3">
         <Button onClick={handleNew} className="w-full justify-start gap-2" size="sm">
-          <MessageSquarePlus className="h-4 w-4" />
+          <ChatTeardropDots className="h-4 w-4" weight="duotone" />
           New chat
         </Button>
         <div className="relative">
-          <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+          <MagnifyingGlass
+            weight="bold"
+            className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground"
+          />
           <Input
             placeholder="Search chats…"
             value={query}
@@ -144,15 +153,15 @@ export const ChatSidebar = ({ onNavigate }: ChatSidebarProps): React.JSX.Element
                       onClick={onNavigate}
                       className={({ isActive }) =>
                         cn(
-                          'group flex items-start gap-2.5 rounded-lg border border-transparent px-2.5 py-2 text-left text-sm transition-all duration-200',
-                          'hover:-translate-y-0.5 hover:border-border hover:bg-accent/60',
+                          'group relative flex items-start gap-2.5 overflow-hidden rounded-lg border border-transparent px-2.5 py-2 text-left text-sm transition-all duration-200',
+                          'hover:-translate-y-0.5 hover:border-border/60 hover:bg-primary/5',
                           (isActive || chat.id === chatId) &&
-                            'border-border bg-accent text-accent-foreground shadow-sm',
+                            "border-primary/20 bg-primary/8 text-foreground shadow-[0_0_24px_-12px_hsl(var(--primary)/0.6)] before:absolute before:inset-y-1 before:left-0 before:w-0.5 before:rounded-full before:bg-gradient-to-b before:from-brand-from before:via-brand-via before:to-brand-to before:content-['']",
                         )
                       }
                     >
-                      <span className="mt-0.5 flex h-7 w-7 flex-none items-center justify-center rounded-md bg-muted text-muted-foreground transition-colors group-hover:bg-primary/10 group-hover:text-primary">
-                        <MessageSquare className="h-3.5 w-3.5" />
+                      <span className="mt-0.5 flex h-7 w-7 flex-none items-center justify-center rounded-md bg-muted text-muted-foreground transition-colors group-hover:bg-primary/15 group-hover:text-primary">
+                        <ChatCircle className="h-3.5 w-3.5" weight="duotone" />
                       </span>
                       <span className="min-w-0 flex-1">
                         <span className="block truncate font-medium leading-tight">
@@ -178,10 +187,10 @@ export const ChatSidebar = ({ onNavigate }: ChatSidebarProps): React.JSX.Element
               disabled={loadingMore}
             >
               {loadingMore ? (
-                <Loader2 className="h-3 w-3 animate-spin" />
+                <CircleNotch className="h-3 w-3 animate-spin" weight="bold" />
               ) : (
                 <>
-                  <ChevronDown className="h-3 w-3" />
+                  <CaretDown className="h-3 w-3" weight="bold" />
                   Load more
                 </>
               )}
@@ -202,7 +211,7 @@ const EmptyState = ({
 }): React.JSX.Element => (
   <div className="flex flex-col items-center justify-center gap-2 px-2 py-10 text-center">
     <div className="flex h-10 w-10 items-center justify-center rounded-full bg-muted">
-      <MessageSquare className="h-4 w-4 text-muted-foreground" />
+      <ChatCircle className="h-4 w-4 text-muted-foreground" weight="duotone" />
     </div>
     <p className="text-sm font-medium">{hasChats && query ? 'No matches' : 'No chats yet'}</p>
     <p className="text-xs text-muted-foreground">
