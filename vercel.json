@@ -2,9 +2,9 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "version": 2,
   "framework": null,
-  "installCommand": "pnpm install --frozen-lockfile=false",
-  "buildCommand": "pnpm prisma generate",
-  "ignoreCommand": "git diff --quiet HEAD^ HEAD ./api ./src ./prisma ./package.json ./pnpm-lock.yaml ./vercel.json",
+  "installCommand": "pnpm install --frozen-lockfile=false && pnpm prisma generate",
+  "buildCommand": "true",
+  "outputDirectory": ".",
   "functions": {
     "api/index.ts": {
       "maxDuration": 60
