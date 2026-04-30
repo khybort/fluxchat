@@ -2,63 +2,84 @@
 @tailwind components;
 @tailwind utilities;
 
+/*
+ * Design system — shadcn/ui baseline (zinc neutrals, single blue accent).
+ *
+ * Token discipline: every visible color comes from a CSS custom property in
+ * this file. No ad-hoc hex/rgb values in components. No multi-stop gradients
+ * masquerading as accents — the primary is one color, used consistently for
+ * focus, hover, and the active-state indicator.
+ */
+
 @layer base {
   :root {
     --background: 0 0% 100%;
-    --foreground: 240 10% 3.9%;
-    --card: 0 0% 100%;
-    --card-foreground: 240 10% 3.9%;
-    --popover: 0 0% 100%;
-    --popover-foreground: 240 10% 3.9%;
-    --primary: 240 5.9% 10%;
-    --primary-foreground: 0 0% 98%;
-    --secondary: 240 4.8% 95.9%;
-    --secondary-foreground: 240 5.9% 10%;
-    --muted: 240 4.8% 95.9%;
-    --muted-foreground: 240 3.8% 46.1%;
-    --accent: 240 4.8% 95.9%;
-    --accent-foreground: 240 5.9% 10%;
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 0 0% 98%;
-    --border: 240 5.9% 90%;
-    --input: 240 5.9% 90%;
-    --ring: 240 5.9% 10%;
-    --radius: 0.875rem;
+    --foreground: 224 71% 4%;
 
-    --brand-from: 263 78% 64%;
-    --brand-via: 320 75% 60%;
-    --brand-to: 192 80% 55%;
+    --card: 0 0% 100%;
+    --card-foreground: 224 71% 4%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 224 71% 4%;
+
+    --primary: 217 91% 60%; /* blue-500 — the only accent */
+    --primary-foreground: 210 40% 98%;
+
+    --secondary: 220 14% 96%;
+    --secondary-foreground: 222 47% 11%;
+
+    --muted: 220 14% 96%;
+    --muted-foreground: 220 9% 46%;
+
+    --accent: 220 14% 96%;
+    --accent-foreground: 222 47% 11%;
+
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 210 40% 98%;
+
+    --success: 142 71% 45%;
+    --success-foreground: 0 0% 100%;
+    --warning: 38 92% 50%;
+    --warning-foreground: 224 71% 4%;
+
+    --border: 220 13% 91%;
+    --input: 220 13% 91%;
+    --ring: 217 91% 60%;
+
+    --radius: 0.625rem;
   }
 
   .dark {
-    /* Violet-tinted dark base — never pure neutral grey */
-    --background: 260 14% 5%;
-    --foreground: 260 10% 96%;
-    --card: 260 14% 8%;
-    --card-foreground: 260 10% 96%;
-    --popover: 260 16% 7%;
-    --popover-foreground: 260 10% 96%;
+    --background: 224 71% 4%;
+    --foreground: 213 31% 91%;
 
-    /* Electric violet primary */
-    --primary: 263 78% 64%;
-    --primary-foreground: 260 16% 5%;
+    --card: 224 71% 6%;
+    --card-foreground: 213 31% 91%;
+    --popover: 224 71% 6%;
+    --popover-foreground: 213 31% 91%;
 
-    --secondary: 260 12% 14%;
-    --secondary-foreground: 260 10% 96%;
+    --primary: 217 91% 60%;
+    --primary-foreground: 222 47% 11%;
 
-    --muted: 260 10% 12%;
-    --muted-foreground: 260 8% 64%;
+    --secondary: 215 28% 17%;
+    --secondary-foreground: 213 31% 91%;
 
-    /* Vibrant cyan accent */
-    --accent: 192 80% 55%;
-    --accent-foreground: 260 16% 5%;
+    --muted: 215 28% 17%;
+    --muted-foreground: 217 11% 65%;
 
-    --destructive: 0 72% 56%;
-    --destructive-foreground: 260 10% 98%;
+    --accent: 215 28% 17%;
+    --accent-foreground: 213 31% 91%;
 
-    --border: 260 12% 18%;
-    --input: 260 12% 18%;
-    --ring: 263 78% 64%;
+    --destructive: 0 63% 51%;
+    --destructive-foreground: 210 40% 98%;
+
+    --success: 142 64% 50%;
+    --success-foreground: 224 71% 4%;
+    --warning: 38 92% 55%;
+    --warning-foreground: 224 71% 4%;
+
+    --border: 215 28% 17%;
+    --input: 215 28% 17%;
+    --ring: 217 91% 60%;
   }
 
   * {
@@ -73,7 +94,7 @@
 }
 
 @layer utilities {
-  /* Subtle scrollbar */
+  /* Subtle scrollbar — neutral, no accent leak */
   .scrollbar-thin {
     scrollbar-width: thin;
     scrollbar-color: hsl(var(--muted-foreground) / 0.3) transparent;
@@ -92,85 +113,33 @@
   .scrollbar-thin::-webkit-scrollbar-thumb:hover {
     background-color: hsl(var(--muted-foreground) / 0.5);
   }
-
-  /* Brand gradient text — used on titles + hero copy */
-  .text-brand-gradient {
-    background-image: linear-gradient(
-      to right,
-      hsl(var(--brand-from)),
-      hsl(var(--brand-via)),
-      hsl(var(--brand-to))
-    );
-    -webkit-background-clip: text;
-    background-clip: text;
-    color: transparent;
-  }
-
-  /* Soft violet glow ring — used by interactive primary surfaces */
-  .ring-glow {
-    box-shadow:
-      0 0 0 1px hsl(var(--primary) / 0.35),
-      0 0 30px -6px hsl(var(--primary) / 0.55);
-  }
-  .ring-glow-strong {
-    box-shadow:
-      0 0 0 1px hsl(var(--primary) / 0.5),
-      0 0 40px -4px hsl(var(--primary) / 0.65);
-  }
-
-  /* Aurora mesh backdrop — composed of two large blurred orbs */
-  .aurora-orb {
-    @apply pointer-events-none absolute rounded-full blur-[120px];
-  }
 }
 
-/* Streaming caret — replaces the blinky ▋ with a glowing violet dot */
-@keyframes caret-pulse {
-  0%, 100% {
+/* Streaming caret — single primary dot, soft blink. Replaces the previous
+ * gradient pulse. Accessible-motion-friendly: animation pauses if the user
+ * has prefers-reduced-motion. */
+@keyframes caret-blink {
+  0%,
+  100% {
     opacity: 0.55;
-    transform: scale(0.85);
-    box-shadow: 0 0 8px 2px hsl(var(--brand-from) / 0.4);
   }
   50% {
     opacity: 1;
-    transform: scale(1);
-    box-shadow: 0 0 12px 3px hsl(var(--brand-via) / 0.55);
   }
 }
 .streaming-caret::after {
   content: '';
   display: inline-block;
-  width: 0.45em;
-  height: 0.45em;
+  width: 0.4em;
+  height: 0.4em;
   margin-left: 0.25em;
   vertical-align: middle;
   border-radius: 9999px;
-  background: linear-gradient(
-    135deg,
-    hsl(var(--brand-from)),
-    hsl(var(--brand-via))
-  );
-  animation: caret-pulse 1.4s ease-in-out infinite;
+  background: hsl(var(--primary));
+  animation: caret-blink 1.2s ease-in-out infinite;
 }
-
-/* Aurora drift — slow elliptical motion for the orbs */
-@keyframes aurora-drift {
-  0%,
-  100% {
-    transform: translate3d(0, 0, 0) scale(1);
-  }
-  50% {
-    transform: translate3d(2%, -3%, 0) scale(1.08);
-  }
-}
-
-/* Slow glow pulse — for primary action shadows */
-@keyframes glow-pulse {
-  0%,
-  100% {
-    box-shadow: 0 0 30px -6px hsl(var(--primary) / 0.45);
-  }
-  50% {
-    box-shadow: 0 0 40px -2px hsl(var(--primary) / 0.7);
+@media (prefers-reduced-motion: reduce) {
+  .streaming-caret::after {
+    animation: none;
   }
 }

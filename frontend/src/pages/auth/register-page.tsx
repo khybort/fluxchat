@@ -1,4 +1,4 @@
-import { CircleNotch, UserPlus } from '@phosphor-icons/react';
+import { CircleNotchIcon, UserPlusIcon } from '@phosphor-icons/react';
 import { useState, type FormEvent } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
@@ -93,12 +93,12 @@ export const RegisterPage = (): React.JSX.Element => {
             required
           />
         </div>
-        <Button type="submit" variant="glow" className="w-full" disabled={submitting}>
+        <Button type="submit" className="w-full" disabled={submitting}>
           {submitting ? (
-            <CircleNotch className="h-4 w-4 animate-spin" weight="bold" />
+            <CircleNotchIcon className="h-4 w-4 animate-spin" weight="bold" />
           ) : (
             <>
-              <UserPlus className="h-4 w-4" weight="duotone" />
+              <UserPlusIcon className="h-4 w-4" weight="bold" />
               Create account
             </>
           )}

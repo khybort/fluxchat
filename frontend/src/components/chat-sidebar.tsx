@@ -1,10 +1,10 @@
 import { AnimatePresence, motion } from 'framer-motion';
 import {
-  CaretDown,
-  ChatCircle,
-  ChatTeardropDots,
-  CircleNotch,
-  MagnifyingGlass,
+  CaretDownIcon,
+  ChatCircleIcon,
+  ChatTeardropDotsIcon,
+  CircleNotchIcon,
+  MagnifyingGlassIcon,
 } from '@phosphor-icons/react';
 import { useEffect, useMemo, useState } from 'react';
 import { NavLink, useNavigate, useParams } from 'react-router-dom';
@@ -105,11 +105,11 @@ export const ChatSidebar = ({ onNavigate }: ChatSidebarProps): React.JSX.Element
     <div className="flex flex-1 flex-col overflow-hidden">
       <div className="space-y-2 px-3 py-3">
         <Button onClick={handleNew} className="w-full justify-start gap-2" size="sm">
-          <ChatTeardropDots className="h-4 w-4" weight="duotone" />
+          <ChatTeardropDotsIcon className="h-4 w-4" weight="regular" />
           New chat
         </Button>
         <div className="relative">
-          <MagnifyingGlass
+          <MagnifyingGlassIcon
             weight="bold"
             className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground"
           />
@@ -153,15 +153,15 @@ export const ChatSidebar = ({ onNavigate }: ChatSidebarProps): React.JSX.Element
                       onClick={onNavigate}
                       className={({ isActive }) =>
                         cn(
-                          'group relative flex items-start gap-2.5 overflow-hidden rounded-lg border border-transparent px-2.5 py-2 text-left text-sm transition-all duration-200',
-                          'hover:-translate-y-0.5 hover:border-border/60 hover:bg-primary/5',
+                          'group flex items-start gap-2.5 rounded-md px-2.5 py-2 text-left text-sm transition-colors',
+                          'hover:bg-accent',
                           (isActive || chat.id === chatId) &&
-                            "border-primary/20 bg-primary/8 text-foreground shadow-[0_0_24px_-12px_hsl(var(--primary)/0.6)] before:absolute before:inset-y-1 before:left-0 before:w-0.5 before:rounded-full before:bg-gradient-to-b before:from-brand-from before:via-brand-via before:to-brand-to before:content-['']",
+                            'bg-accent font-medium text-accent-foreground',
                         )
                       }
                     >
-                      <span className="mt-0.5 flex h-7 w-7 flex-none items-center justify-center rounded-md bg-muted text-muted-foreground transition-colors group-hover:bg-primary/15 group-hover:text-primary">
-                        <ChatCircle className="h-3.5 w-3.5" weight="duotone" />
+                      <span className="mt-0.5 flex h-7 w-7 flex-none items-center justify-center rounded-md bg-secondary text-muted-foreground group-hover:text-foreground">
+                        <ChatCircleIcon className="h-3.5 w-3.5" weight="bold" />
                       </span>
                       <span className="min-w-0 flex-1">
                         <span className="block truncate font-medium leading-tight">
@@ -187,10 +187,10 @@ export const ChatSidebar = ({ onNavigate }: ChatSidebarProps): React.JSX.Element
               disabled={loadingMore}
             >
               {loadingMore ? (
-                <CircleNotch className="h-3 w-3 animate-spin" weight="bold" />
+                <CircleNotchIcon className="h-3 w-3 animate-spin" weight="bold" />
               ) : (
                 <>
-                  <CaretDown className="h-3 w-3" weight="bold" />
+                  <CaretDownIcon className="h-3 w-3" weight="bold" />
                   Load more
                 </>
               )}
@@ -211,7 +211,7 @@ const EmptyState = ({
 }): React.JSX.Element => (
   <div className="flex flex-col items-center justify-center gap-2 px-2 py-10 text-center">
     <div className="flex h-10 w-10 items-center justify-center rounded-full bg-muted">
-      <ChatCircle className="h-4 w-4 text-muted-foreground" weight="duotone" />
+      <ChatCircleIcon className="h-4 w-4 text-muted-foreground" weight="regular" />
     </div>
     <p className="text-sm font-medium">{hasChats && query ? 'No matches' : 'No chats yet'}</p>
     <p className="text-xs text-muted-foreground">

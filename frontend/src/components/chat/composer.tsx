@@ -1,4 +1,4 @@
-import { PaperPlaneTilt, Stop } from '@phosphor-icons/react';
+import { PaperPlaneTiltIcon, StopIcon } from '@phosphor-icons/react';
 import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from 'react';
 
 import { Button } from '@/components/ui/button';
@@ -51,15 +51,11 @@ export const Composer = ({
   };
 
   return (
-    <form
-      onSubmit={handleFormSubmit}
-      className="border-t border-border/40 bg-card/20 px-4 py-3 backdrop-blur-xl md:px-6"
-    >
+    <form onSubmit={handleFormSubmit} className="border-t bg-background px-4 py-3 md:px-6">
       <div
         className={cn(
-          'group relative flex items-end gap-2 rounded-2xl border border-border/60 bg-card/60 p-2 shadow-sm transition-all duration-300',
-          'focus-within:border-primary/50 focus-within:bg-card/80',
-          'focus-within:shadow-[0_0_0_1px_hsl(var(--primary)/0.35),0_0_30px_-6px_hsl(var(--primary)/0.55)]',
+          'flex items-end gap-2 rounded-md border bg-card p-2 transition-shadow',
+          'focus-within:ring-1 focus-within:ring-ring focus-within:border-ring',
           disabled && 'opacity-60',
         )}
       >
@@ -79,19 +75,13 @@ export const Composer = ({
             size="icon"
             variant="ghost"
             onClick={onCancel}
-            className="rounded-xl text-destructive hover:bg-destructive/10"
+            className="text-destructive hover:bg-destructive/10"
           >
-            <Stop className="h-5 w-5" weight="bold" />
+            <StopIcon className="h-5 w-5" weight="bold" />
           </Button>
         ) : (
-          <Button
-            type="submit"
-            size="icon"
-            variant="glow"
-            disabled={disabled || busy || !value.trim()}
-            className="rounded-xl transition-transform group-focus-within:scale-105"
-          >
-            <PaperPlaneTilt className="h-4 w-4" weight="duotone" />
+          <Button type="submit" size="icon" disabled={disabled || busy || !value.trim()}>
+            <PaperPlaneTiltIcon className="h-4 w-4" weight="bold" />
           </Button>
         )}
       </div>

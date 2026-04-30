@@ -1,6 +1,12 @@
 import type { Config } from 'tailwindcss';
 import animate from 'tailwindcss-animate';
 
+/**
+ * Tailwind theme — every color is sourced from the CSS variable layer in
+ * src/styles/globals.css so dark/light parity stays in one place. Keep this
+ * file thin: no ad-hoc gradients, no per-component color, no decorative
+ * keyframes. The design system is the variables.
+ */
 export default {
   darkMode: ['class'],
   content: ['./index.html', './src/**/*.{ts,tsx}'],
@@ -45,10 +51,13 @@ export default {
           DEFAULT: 'hsl(var(--card))',
           foreground: 'hsl(var(--card-foreground))',
         },
-        brand: {
-          from: 'hsl(var(--brand-from))',
-          via: 'hsl(var(--brand-via))',
-          to: 'hsl(var(--brand-to))',
+        success: {
+          DEFAULT: 'hsl(var(--success))',
+          foreground: 'hsl(var(--success-foreground))',
+        },
+        warning: {
+          DEFAULT: 'hsl(var(--warning))',
+          foreground: 'hsl(var(--warning-foreground))',
         },
       },
       borderRadius: {
@@ -65,7 +74,7 @@ export default {
           from: { height: 'var(--radix-accordion-content-height)' },
           to: { height: '0' },
         },
-        'shimmer': {
+        shimmer: {
           '0%': { backgroundPosition: '-200% 0' },
           '100%': { backgroundPosition: '200% 0' },
         },
@@ -73,22 +82,12 @@ export default {
           '0%, 100%': { opacity: '1' },
           '50%': { opacity: '0.6' },
         },
-        'aurora': {
-          '0%, 100%': { transform: 'translate3d(0,0,0) scale(1)' },
-          '50%': { transform: 'translate3d(2%, -3%, 0) scale(1.08)' },
-        },
-        'glow-pulse': {
-          '0%, 100%': { boxShadow: '0 0 30px -6px hsl(var(--primary) / 0.45)' },
-          '50%': { boxShadow: '0 0 40px -2px hsl(var(--primary) / 0.7)' },
-        },
       },
       animation: {
         'accordion-down': 'accordion-down 0.2s ease-out',
         'accordion-up': 'accordion-up 0.2s ease-out',
-        'shimmer': 'shimmer 2s linear infinite',
+        shimmer: 'shimmer 2s linear infinite',
         'pulse-soft': 'pulse-soft 1.5s ease-in-out infinite',
-        'aurora': 'aurora 16s ease-in-out infinite',
-        'glow-pulse': 'glow-pulse 3.2s ease-in-out infinite',
       },
     },
   },

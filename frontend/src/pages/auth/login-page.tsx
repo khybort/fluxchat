@@ -1,4 +1,4 @@
-import { CircleNotch, SignIn } from '@phosphor-icons/react';
+import { CircleNotchIcon, SignInIcon } from '@phosphor-icons/react';
 import { useState, type FormEvent } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
@@ -78,12 +78,12 @@ export const LoginPage = (): React.JSX.Element => {
             required
           />
         </div>
-        <Button type="submit" variant="glow" className="w-full" disabled={submitting}>
+        <Button type="submit" className="w-full" disabled={submitting}>
           {submitting ? (
-            <CircleNotch className="h-4 w-4 animate-spin" weight="bold" />
+            <CircleNotchIcon className="h-4 w-4 animate-spin" weight="bold" />
           ) : (
             <>
-              <SignIn className="h-4 w-4" weight="duotone" />
+              <SignInIcon className="h-4 w-4" weight="bold" />
               Sign in
             </>
           )}
