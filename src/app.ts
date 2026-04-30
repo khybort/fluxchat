@@ -6,7 +6,7 @@ import './modules/chat/chat.openapi.js';
 import './modules/healthz.openapi.js';
 
 import cors from 'cors';
-import express, { type Express } from 'express';
+import express, { type Express, type Request, type Response } from 'express';
 import helmet from 'helmet';
 
 import type { AppContainer } from './di/container.js';
@@ -44,7 +44,7 @@ export const createApp = (container: AppContainer): Express => {
   app.use(buildCors(container));
   app.use(express.json({ limit: REQUEST_BODY_LIMIT }));
 
-  app.get('/healthz', (_req, res) => {
+  app.get('/healthz', (_req: Request, res: Response) => {
     res.status(200).json({
       status: 'ok',
       flags: container.flags.snapshot(),
