@@ -10,6 +10,7 @@ import { UnauthorizedError } from '../errors/app-error.js';
 interface JwtPayload {
   sub: string;
   email: string;
+  role?: 'user' | 'admin';
 }
 
 const isJwtPayload = (value: unknown): value is JwtPayload =>
@@ -31,7 +32,14 @@ export const authMiddleware: RequestHandler = (req, _res, next) => {
     if (!isJwtPayload(decoded)) {
       return next(new UnauthorizedError('Invalid token payload'));
     }
-    req.user = { id: decoded.sub, email: decoded.email };
+    // JWTs minted before the RBAC scaffold landed don't carry `role`; default
+    // to `user`. The new auth.service includes role on every freshly minted
+    // token so this fallback degrades gracefully during the rollout window.
+    req.user = {
+      id: decoded.sub,
+      email: decoded.email,
+      role: decoded.role ?? 'user',
+    };
     next();
   } catch {
     next(new UnauthorizedError('Invalid or expired token'));

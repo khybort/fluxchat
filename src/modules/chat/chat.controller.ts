@@ -63,6 +63,17 @@ export class ChatController {
     }
   };
 
+  public deleteChat = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const user = requireUser(req);
+      const { chatId } = req.params as { chatId: string };
+      await this.chatService.deleteChat(chatId, user.id);
+      res.status(204).send();
+    } catch (error) {
+      next(error);
+    }
+  };
+
   public getHistory = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
       const user = requireUser(req);
@@ -108,7 +119,7 @@ export class ChatController {
         return;
       }
 
-      this.sse.openStream(res);
+      const heartbeat = this.sse.openStream(res);
       try {
         for await (const event of result.events) {
           if (controller.signal.aborted) break;
@@ -118,7 +129,7 @@ export class ChatController {
         req.log.error({ err: streamError }, 'completion_stream_error');
         this.sse.writeError(res, 'STREAM_ERROR', 'Stream interrupted');
       } finally {
-        this.sse.end(res);
+        this.sse.end(res, heartbeat);
       }
     } catch (error) {
       next(error);

@@ -1,6 +1,6 @@
 import { toDomainMessage } from './chat.mapper.js';
-import type { IMessageRepository } from './chat.repository.interface.js';
-import type { ListParams, Message, MessageRole } from './chat.types.js';
+import type { CreateMessageInput, IMessageRepository } from './chat.repository.interface.js';
+import type { ListParams, Message } from './chat.types.js';
 import type { PrismaService } from '../../infrastructure/database/prisma.service.js';
 
 export class MessageRepository implements IMessageRepository {
@@ -25,13 +25,17 @@ export class MessageRepository implements IMessageRepository {
     return rows.map(toDomainMessage).reverse();
   }
 
-  public async create(input: {
-    chatId: string;
-    role: MessageRole;
-    content: string;
-  }): Promise<Message> {
+  public async create(input: CreateMessageInput): Promise<Message> {
     const row = await this.prisma.client.message.create({
-      data: { chatId: input.chatId, role: input.role, content: input.content },
+      data: {
+        chatId: input.chatId,
+        role: input.role,
+        content: input.content,
+        promptTokens: input.usage?.promptTokens ?? null,
+        completionTokens: input.usage?.completionTokens ?? null,
+        provider: input.usage?.provider ?? null,
+        model: input.usage?.model ?? null,
+      },
     });
     return toDomainMessage(row);
   }

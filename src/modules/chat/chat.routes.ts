@@ -46,6 +46,13 @@ export const buildChatRouter = (
     controller.getHistory,
   );
 
+  router.delete(
+    '/chats/:chatId',
+    validateRequest({ params: ChatIdParamSchema }),
+    rateLimitPerRoute({ keyBy: 'user', store: rateLimitStore }),
+    controller.deleteChat,
+  );
+
   router.post(
     '/chats/:chatId/completion',
     // Route-specific feature-flag guard (case §6 "Important Note"). When the

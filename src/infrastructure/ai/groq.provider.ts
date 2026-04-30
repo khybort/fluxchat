@@ -27,18 +27,21 @@ interface GroqProviderOptions {
  * default model is openai/gpt-oss-120b.
  */
 export class GroqProvider implements IAiProvider {
-  private readonly model: ReturnType<ReturnType<typeof createOpenAI>>;
+  public readonly kind = 'groq';
+  public readonly model: string;
+  private readonly modelRef: ReturnType<ReturnType<typeof createOpenAI>>;
   private readonly logger: Logger;
 
   constructor(opts: GroqProviderOptions) {
     const provider = createOpenAI({ apiKey: opts.apiKey, baseURL: opts.baseUrl });
-    this.model = provider(opts.model);
+    this.modelRef = provider(opts.model);
+    this.model = opts.model;
     this.logger = opts.logger;
   }
 
   public async complete(request: CompletionRequest): Promise<CompletionResultJson> {
     const result = await generateText({
-      model: this.model,
+      model: this.modelRef,
       messages: this.buildMessages(request),
       ...(request.toolsEnabled ? { tools: this.buildTools() } : {}),
     });
@@ -70,7 +73,7 @@ export class GroqProvider implements IAiProvider {
     yield { type: 'thinking' };
 
     const result = streamText({
-      model: this.model,
+      model: this.modelRef,
       messages: this.buildMessages(request),
       abortSignal: signal,
       ...(request.toolsEnabled ? { tools: this.buildTools() } : {}),

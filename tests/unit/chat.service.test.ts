@@ -78,3 +78,39 @@ describe('ChatService.ensureOwnership', () => {
     expect(found.id).toBe(created.id);
   });
 });
+
+describe('ChatService.createChat', () => {
+  it('falls back to DEFAULT_CHAT_TITLE when title is empty', async () => {
+    const chats = new InMemoryChatRepository();
+    const flags = FeatureFlagService.getInstance();
+    const service = new ChatService(chats, flags);
+    const created = await service.createChat({ userId: 'user-X', title: '   ' });
+    expect(created.title.length).toBeGreaterThan(0);
+    expect(created.title).not.toBe('   ');
+  });
+});
+
+describe('ChatService.deleteChat', () => {
+  it('soft-deletes a chat owned by the user', async () => {
+    const chats = new InMemoryChatRepository();
+    const flags = FeatureFlagService.getInstance();
+    const service = new ChatService(chats, flags);
+    const created = await chats.create({ userId: 'user-1', title: 'A' });
+
+    await service.deleteChat(created.id, 'user-1');
+
+    expect(await chats.findByIdForUser(created.id, 'user-1')).toBeNull();
+  });
+
+  it('throws NotFoundError when the chat is missing or owned by someone else', async () => {
+    const chats = new InMemoryChatRepository();
+    const flags = FeatureFlagService.getInstance();
+    const service = new ChatService(chats, flags);
+    const created = await chats.create({ userId: 'owner', title: 'A' });
+
+    await expect(service.deleteChat(created.id, 'intruder')).rejects.toBeInstanceOf(NotFoundError);
+    await expect(
+      service.deleteChat('00000000-0000-0000-0000-000000000999', 'owner'),
+    ).rejects.toBeInstanceOf(NotFoundError);
+  });
+});

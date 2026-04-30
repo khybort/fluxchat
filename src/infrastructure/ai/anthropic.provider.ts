@@ -88,8 +88,9 @@ const safeParseJson = (input: string): Record<string, unknown> => {
  * deltas to the caller.
  */
 export class AnthropicProvider implements IAiProvider {
+  public readonly kind = 'anthropic';
+  public readonly model: string;
   private readonly client: Anthropic;
-  private readonly model: string;
   private readonly logger: Logger;
   private readonly maxTokens: number;
 

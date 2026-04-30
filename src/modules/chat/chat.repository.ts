@@ -13,7 +13,8 @@ export class ChatRepository implements IChatRepository {
 
   public async findByUser(userId: string, params: ListParams): Promise<Chat[]> {
     const rows = await this.prisma.client.chat.findMany({
-      where: { userId },
+      // Soft-delete filter: hide tombstoned rows from the user-facing list.
+      where: { userId, deletedAt: null },
       take: params.limit + 1,
       ...(params.cursor ? { cursor: { id: params.cursor }, skip: 1 } : {}),
       orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
@@ -23,7 +24,7 @@ export class ChatRepository implements IChatRepository {
 
   public async findByIdForUser(chatId: string, userId: string): Promise<Chat | null> {
     const row = await this.prisma.client.chat.findFirst({
-      where: { id: chatId, userId },
+      where: { id: chatId, userId, deletedAt: null },
     });
     return row ? toDomainChat(row) : null;
   }
@@ -40,5 +41,15 @@ export class ChatRepository implements IChatRepository {
       where: { id: chatId },
       data: { updatedAt: new Date() },
     });
+  }
+
+  public async softDelete(chatId: string, userId: string): Promise<boolean> {
+    // updateMany returns a count — using it lets us atomically scope the
+    // delete to the owner without a prior findFirst round-trip.
+    const result = await this.prisma.client.chat.updateMany({
+      where: { id: chatId, userId, deletedAt: null },
+      data: { deletedAt: new Date() },
+    });
+    return result.count > 0;
   }
 }

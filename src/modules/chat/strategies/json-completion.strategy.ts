@@ -19,7 +19,11 @@ export class JsonCompletionStrategy implements ICompletionStrategy {
       toolsEnabled: this.flags.get('AI_TOOLS_ENABLED'),
     });
 
-    await input.onComplete(result.text);
+    await input.onComplete(result.text, {
+      ...(result.usage ? { usage: result.usage } : {}),
+      provider: this.ai.kind,
+      model: this.ai.model,
+    });
 
     return {
       kind: 'json',

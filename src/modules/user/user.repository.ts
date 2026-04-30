@@ -1,5 +1,5 @@
 import type { CreateUserInput, IUserRepository } from './user.repository.interface.js';
-import type { User, UserWithCredentials } from './user.types.js';
+import type { User, UserRole, UserWithCredentials } from './user.types.js';
 import type { PrismaService } from '../../infrastructure/database/prisma.service.js';
 
 interface PrismaUserRow {
@@ -7,6 +7,7 @@ interface PrismaUserRow {
   email: string;
   name: string | null;
   passwordHash: string;
+  role: string;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -15,6 +16,7 @@ const toDomainUser = (row: PrismaUserRow): User => ({
   id: row.id,
   email: row.email,
   name: row.name,
+  role: row.role as UserRole,
   createdAt: row.createdAt,
   updatedAt: row.updatedAt,
 });

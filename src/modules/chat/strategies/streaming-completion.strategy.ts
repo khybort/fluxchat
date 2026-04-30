@@ -36,7 +36,11 @@ export class StreamingCompletionStrategy implements ICompletionStrategy {
       } else if (event.type === 'done') {
         // Persist before forwarding `done` so clients that close the stream
         // immediately after still see the assistant message in history.
-        await input.onComplete(event.fullText || fullText);
+        await input.onComplete(event.fullText || fullText, {
+          ...(event.usage ? { usage: event.usage } : {}),
+          provider: this.ai.kind,
+          model: this.ai.model,
+        });
       }
       yield event;
     }

@@ -15,6 +15,8 @@ import { detectWeatherIntent, getCurrentWeather } from './mock-tools.js';
  * code path is exercised end-to-end.
  */
 export class MockAiProvider implements IAiProvider {
+  public readonly kind = 'mock';
+  public readonly model = 'mock';
   private static readonly REPLY_TEMPLATE =
     'Mock response: I received your prompt and would normally call the model here.';
 

@@ -22,11 +22,20 @@ enum MessageRole {
   system
 }
 
+enum UserRole {
+  user
+  admin
+}
+
 model User {
   id           String   @id @default(uuid())
   email        String   @unique
   name         String?
   passwordHash String
+  // Application-level role for the RBAC scaffold. Default is `user`; bump
+  // specific accounts to `admin` via SQL or a future admin tool. Used by
+  // `requireRole('admin')` in src/shared/middleware/role.ts.
+  role         UserRole @default(user)
   chats        Chat[]
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
@@ -42,18 +51,29 @@ model Chat {
   messages  Message[]
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
+  // Soft-delete tombstone. Repository hides rows where this is non-null so the
+  // user sees them disappear, but the DB row + its messages are kept for
+  // 30 days (cron-driven hard-delete out of scope) — recoverable + audit-safe.
+  deletedAt DateTime?
 
   @@index([userId, createdAt(sort: Desc)])
+  @@index([userId, deletedAt, createdAt(sort: Desc)])
   @@map("chats")
 }
 
 model Message {
-  id        String      @id @default(uuid())
-  chatId    String
-  chat      Chat        @relation(fields: [chatId], references: [id], onDelete: Cascade)
-  role      MessageRole
-  content   String      @db.Text
-  createdAt DateTime    @default(now())
+  id               String      @id @default(uuid())
+  chatId           String
+  chat             Chat        @relation(fields: [chatId], references: [id], onDelete: Cascade)
+  role             MessageRole
+  content          String      @db.Text
+  // Per-assistant-message AI usage telemetry. All-nullable: user messages
+  // never carry these, and older assistant rows may pre-date the migration.
+  promptTokens     Int?
+  completionTokens Int?
+  provider         String?
+  model            String?
+  createdAt        DateTime    @default(now())
 
   @@index([chatId, createdAt(sort: Asc)])
   @@map("messages")

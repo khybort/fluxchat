@@ -24,12 +24,20 @@ export interface Chat {
 
 export type MessageRole = 'user' | 'assistant' | 'system';
 
+export interface MessageUsage {
+  promptTokens: number | null;
+  completionTokens: number | null;
+  provider: string | null;
+  model: string | null;
+}
+
 export interface Message {
   id: string;
   chatId: string;
   role: MessageRole;
   content: string;
   createdAt: string;
+  usage?: MessageUsage | null;
 }
 
 export interface PageResult<T> {

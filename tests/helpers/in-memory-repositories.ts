@@ -1,8 +1,9 @@
 import type {
+  CreateMessageInput,
   IChatRepository,
   IMessageRepository,
 } from '../../src/modules/chat/chat.repository.interface.js';
-import type { Chat, ListParams, Message, MessageRole } from '../../src/modules/chat/chat.types.js';
+import type { Chat, ListParams, Message } from '../../src/modules/chat/chat.types.js';
 
 let nextId = 1;
 const id = (): string => `00000000-0000-0000-0000-${String(nextId++).padStart(12, '0')}`;
@@ -12,7 +13,7 @@ export class InMemoryChatRepository implements IChatRepository {
 
   public async findByUser(userId: string, params: ListParams): Promise<Chat[]> {
     const sorted = this.chats
-      .filter((c) => c.userId === userId)
+      .filter((c) => c.userId === userId && c.deletedAt === null)
       .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
     let startIdx = 0;
     if (params.cursor) {
@@ -23,7 +24,9 @@ export class InMemoryChatRepository implements IChatRepository {
   }
 
   public async findByIdForUser(chatId: string, userId: string): Promise<Chat | null> {
-    return this.chats.find((c) => c.id === chatId && c.userId === userId) ?? null;
+    return (
+      this.chats.find((c) => c.id === chatId && c.userId === userId && c.deletedAt === null) ?? null
+    );
   }
 
   public async create(input: { userId: string; title: string }): Promise<Chat> {
@@ -34,6 +37,7 @@ export class InMemoryChatRepository implements IChatRepository {
       title: input.title,
       createdAt: now,
       updatedAt: now,
+      deletedAt: null,
     };
     this.chats.push(chat);
     return chat;
@@ -42,6 +46,15 @@ export class InMemoryChatRepository implements IChatRepository {
   public async touchUpdatedAt(chatId: string): Promise<void> {
     const chat = this.chats.find((c) => c.id === chatId);
     if (chat) chat.updatedAt = new Date();
+  }
+
+  public async softDelete(chatId: string, userId: string): Promise<boolean> {
+    const chat = this.chats.find(
+      (c) => c.id === chatId && c.userId === userId && c.deletedAt === null,
+    );
+    if (!chat) return false;
+    chat.deletedAt = new Date();
+    return true;
   }
 }
 
@@ -67,17 +80,28 @@ export class InMemoryMessageRepository implements IMessageRepository {
       .slice(-count);
   }
 
-  public async create(input: {
-    chatId: string;
-    role: MessageRole;
-    content: string;
-  }): Promise<Message> {
+  public async create(input: CreateMessageInput): Promise<Message> {
+    const usage = input.usage;
+    const hasUsage =
+      usage !== undefined &&
+      (usage.promptTokens != null ||
+        usage.completionTokens != null ||
+        usage.provider != null ||
+        usage.model != null);
     const message: Message = {
       id: id(),
       chatId: input.chatId,
       role: input.role,
       content: input.content,
       createdAt: new Date(),
+      usage: hasUsage
+        ? {
+            promptTokens: usage?.promptTokens ?? null,
+            completionTokens: usage?.completionTokens ?? null,
+            provider: usage?.provider ?? null,
+            model: usage?.model ?? null,
+          }
+        : null,
     };
     this.messages.push(message);
     return message;

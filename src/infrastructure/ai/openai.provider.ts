@@ -24,18 +24,21 @@ interface OpenAiProviderOptions {
  * (LSP — see CLAUDE.md §5).
  */
 export class OpenAiProvider implements IAiProvider {
-  private readonly model: ReturnType<ReturnType<typeof createOpenAI>>;
+  public readonly kind = 'openai';
+  public readonly model: string;
+  private readonly modelRef: ReturnType<ReturnType<typeof createOpenAI>>;
   private readonly logger: Logger;
 
   constructor(opts: OpenAiProviderOptions) {
     const provider = createOpenAI({ apiKey: opts.apiKey });
-    this.model = provider(opts.model);
+    this.modelRef = provider(opts.model);
+    this.model = opts.model;
     this.logger = opts.logger;
   }
 
   public async complete(request: CompletionRequest): Promise<CompletionResultJson> {
     const result = await generateText({
-      model: this.model,
+      model: this.modelRef,
       messages: this.buildMessages(request),
       ...(request.toolsEnabled ? { tools: this.buildTools() } : {}),
     });
@@ -63,7 +66,7 @@ export class OpenAiProvider implements IAiProvider {
     yield { type: 'thinking' };
 
     const result = streamText({
-      model: this.model,
+      model: this.modelRef,
       messages: this.buildMessages(request),
       abortSignal: signal,
       ...(request.toolsEnabled ? { tools: this.buildTools() } : {}),

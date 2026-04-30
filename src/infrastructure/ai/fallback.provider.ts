@@ -20,6 +20,18 @@ export class FallbackAiProvider implements IAiProvider {
     private readonly label = 'fallback_ai_provider',
   ) {}
 
+  /**
+   * Reports the primary provider's identity for usage telemetry. If a fallback
+   * actually fires we lose accurate attribution, but the metric remains useful
+   * (most of the time the primary handles the request).
+   */
+  public get kind(): string {
+    return this.primary.kind;
+  }
+  public get model(): string {
+    return this.primary.model;
+  }
+
   public async complete(request: CompletionRequest): Promise<CompletionResultJson> {
     try {
       return await this.primary.complete(request);

@@ -1,6 +1,11 @@
 import type { CompletionRequest, CompletionResultJson, CompletionStreamEvent } from './ai.types.js';
 
 export interface IAiProvider {
+  /** Stable provider identifier — e.g. 'anthropic', 'groq', 'openai', 'mock'. */
+  readonly kind: string;
+  /** Current model id, e.g. 'claude-sonnet-4-6'. Used for usage telemetry. */
+  readonly model: string;
+
   /** One-shot completion. Returns the full text and any tool calls. */
   complete(request: CompletionRequest): Promise<CompletionResultJson>;
 

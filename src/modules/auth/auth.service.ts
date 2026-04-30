@@ -18,6 +18,7 @@ export interface AuthUserView {
   id: string;
   email: string;
   name: string | null;
+  role: 'user' | 'admin';
 }
 
 export interface RegisterInput {
@@ -38,6 +39,7 @@ const toView = (user: User): AuthUserView => ({
   id: user.id,
   email: user.email,
   name: user.name,
+  role: user.role,
 });
 
 /**
@@ -95,10 +97,17 @@ export class AuthService {
   }
 
   private buildResult(user: User): AuthResult {
+    // role is included so the auth middleware can read it without a DB
+    // round-trip on every request. JWT TTL is 30d, so an account upgraded
+    // from `user` to `admin` won't see the new role until they re-login —
+    // acceptable for the case scope; ship a token-rotation mechanism if
+    // this matters in production.
     // eslint-disable-next-line import/no-named-as-default-member
-    const token = jwt.sign({ sub: user.id, email: user.email }, this.config.values.auth.jwtSecret, {
-      expiresIn: TOKEN_TTL_SECONDS,
-    });
+    const token = jwt.sign(
+      { sub: user.id, email: user.email, role: user.role },
+      this.config.values.auth.jwtSecret,
+      { expiresIn: TOKEN_TTL_SECONDS },
+    );
     return {
       token,
       user: toView(user),

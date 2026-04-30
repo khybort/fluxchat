@@ -46,4 +46,15 @@ export class ChatService {
     const title = input.title?.trim() || DEFAULT_CHAT_TITLE;
     return this.chats.create({ userId: input.userId, title });
   }
+
+  /**
+   * Soft-delete a chat. Returns silently on success; throws NotFound when the
+   * chat doesn't exist or belongs to another user (404, no existence leak).
+   */
+  public async deleteChat(chatId: string, userId: string): Promise<void> {
+    const ok = await this.chats.softDelete(chatId, userId);
+    if (!ok) {
+      throw new NotFoundError('Chat not found');
+    }
+  }
 }

@@ -2,9 +2,12 @@ import type { Logger as PinoLogger } from 'pino';
 
 import type { ClientType } from '../constants.js';
 
+export type UserRole = 'user' | 'admin';
+
 export interface AuthUser {
   id: string;
   email: string;
+  role: UserRole;
 }
 
 declare global {

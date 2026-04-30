@@ -40,7 +40,7 @@ export class CompletionService {
       return strategy.execute({
         history,
         prompt: input.prompt,
-        onComplete: async (assistantText) => {
+        onComplete: async (assistantText, meta) => {
           if (!assistantText.trim()) {
             this.logger.pino.warn(
               { chatId: input.chatId },
@@ -52,6 +52,12 @@ export class CompletionService {
             chatId: input.chatId,
             role: 'assistant',
             content: assistantText,
+            usage: {
+              promptTokens: meta?.usage?.promptTokens ?? null,
+              completionTokens: meta?.usage?.completionTokens ?? null,
+              provider: meta?.provider ?? null,
+              model: meta?.model ?? null,
+            },
           });
         },
       });

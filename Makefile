@@ -90,6 +90,9 @@ test:  ## Run backend test suite (vitest)
 test-watch:  ## Run backend tests in watch mode
 	pnpm test:watch
 
+test-db:  ## Run real-Postgres integration tests (Testcontainers, requires Docker)
+	RUN_DB_TESTS=1 pnpm vitest run tests/integration/db-real.e2e.test.ts
+
 format:  ## Prettier-write the whole repo
 	pnpm format
 

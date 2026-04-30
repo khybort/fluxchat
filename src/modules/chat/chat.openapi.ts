@@ -26,6 +26,15 @@ const ChatSchema = z
   })
   .openapi('Chat');
 
+const MessageUsageSchema = z
+  .object({
+    promptTokens: z.number().int().nullable(),
+    completionTokens: z.number().int().nullable(),
+    provider: z.string().nullable().openapi({ example: 'anthropic' }),
+    model: z.string().nullable().openapi({ example: 'claude-sonnet-4-6' }),
+  })
+  .openapi('MessageUsage');
+
 const MessageSchema = z
   .object({
     id: z.string().uuid(),
@@ -33,6 +42,9 @@ const MessageSchema = z
     role: z.enum(['user', 'assistant', 'system']).openapi({ example: 'assistant' }),
     content: z.string().openapi({ example: 'It is currently partly cloudy.' }),
     createdAt: z.string().datetime(),
+    usage: MessageUsageSchema.nullable().openapi({
+      description: 'Per-assistant-message AI usage. null for user/system rows.',
+    }),
   })
   .openapi('Message');
 
