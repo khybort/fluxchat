@@ -6,12 +6,14 @@ import type {
 import type { IAiProvider } from '../../../infrastructure/ai/ai.provider.js';
 import type { CompletionStreamEvent } from '../../../infrastructure/ai/ai.types.js';
 import type { FeatureFlagService } from '../../../shared/feature-flags/feature-flag.service.js';
+import type { FlagContext } from '../../../shared/feature-flags/feature-flag.types.js';
 
 export class StreamingCompletionStrategy implements ICompletionStrategy {
   constructor(
     private readonly ai: IAiProvider,
     private readonly flags: FeatureFlagService,
     private readonly signal: AbortSignal,
+    private readonly flagCtx?: FlagContext,
   ) {}
 
   public execute(input: CompletionInput): CompletionResult {
@@ -24,7 +26,7 @@ export class StreamingCompletionStrategy implements ICompletionStrategy {
       {
         history: input.history,
         prompt: input.prompt,
-        toolsEnabled: this.flags.get('AI_TOOLS_ENABLED'),
+        toolsEnabled: this.flags.get('AI_TOOLS_ENABLED', this.flagCtx),
       },
       this.signal,
     );

@@ -12,6 +12,7 @@ import type { CompletionService } from './completion.service.js';
 import type { HistoryService } from './history.service.js';
 import { SseSerializer } from './sse.serializer.js';
 import { UnauthorizedError } from '../../shared/errors/app-error.js';
+import { flagContextFrom } from '../../shared/feature-flags/context.js';
 
 const requireUser = (req: Request): { id: string; email: string } => {
   if (!req.user) throw new UnauthorizedError();
@@ -84,6 +85,7 @@ export class ChatController {
         userId: user.id,
         cursor: query.cursor,
         limit: query.limit,
+        flagCtx: flagContextFrom(req),
       });
       res.status(200).json(result);
     } catch (error) {
@@ -108,6 +110,7 @@ export class ChatController {
         userId: user.id,
         prompt: body.message,
         signal: controller.signal,
+        flagCtx: flagContextFrom(req),
       });
 
       if (result.kind === 'json') {

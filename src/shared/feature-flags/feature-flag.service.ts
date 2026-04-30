@@ -1,28 +1,49 @@
 import { existsSync, readFileSync } from 'node:fs';
 
-import type { FeatureFlagSchema, FlagName } from './feature-flag.types.js';
+import { bucketFor } from './bucket.js';
+import type {
+  FeatureFlagSchema,
+  FlagContext,
+  FlagDefinition,
+  FlagName,
+  FlagRule,
+  FlagValue,
+} from './feature-flag.types.js';
 import { Config } from '../../config/config.js';
 import { Logger } from '../../infrastructure/logger/logger.js';
 
+type FlagDefinitions = Record<FlagName, FlagDefinition<FlagValue>>;
+
 /**
- * FeatureFlagService — singleton, hot-reloadable.
+ * FeatureFlagService — singleton, hot-reloadable, context-aware.
  *
  * Sources, in priority order (CLAUDE.md §12):
- *   1. JSON file at FEATURE_FLAGS_FILE (live-reloadable on SIGHUP)
- *   2. Environment variables parsed into Config.featureFlagDefaults
- *   3. Code defaults (the registry below)
+ *   1. JSON file at FEATURE_FLAGS_FILE — accepts both bare primitives
+ *      (`{ "X": true }`) and the rich `{ default, rules?, percentage? }` form.
+ *   2. Environment variables parsed into Config.featureFlagDefaults — always
+ *      bare primitives, wrapped as `{ default: v }` internally.
+ *   3. Code defaults (the registry below).
+ *
+ * Evaluation order for `get(name, ctx?)`:
+ *   1. Walk `rules` in declaration order; first matching rule wins.
+ *   2. If `percentage` is set AND value-type is boolean AND `ctx.userId` is
+ *      present, bucket the user via stable hash and compare to `percentage`.
+ *   3. Otherwise return `default`.
+ *
+ * Any throw inside evaluation is caught and the default is returned — flag
+ * service must never crash a request path.
  */
 export class FeatureFlagService {
   private static instance: FeatureFlagService | null = null;
 
-  private flags: FeatureFlagSchema;
-  private readonly defaults: FeatureFlagSchema;
+  private flags: FlagDefinitions;
+  private readonly defaults: FlagDefinitions;
   private readonly filePath: string | undefined;
   private readonly logger: Logger;
 
   private constructor(config: Config, logger: Logger) {
     this.logger = logger;
-    this.defaults = { ...config.values.featureFlagDefaults };
+    this.defaults = wrapBareDefaults(config.values.featureFlagDefaults);
     this.filePath = config.values.featureFlagsFile;
     this.flags = this.load();
   }
@@ -42,13 +63,28 @@ export class FeatureFlagService {
     FeatureFlagService.instance = null;
   }
 
-  public get<K extends FlagName>(name: K): FeatureFlagSchema[K] {
-    return this.flags[name];
+  /**
+   * Evaluate a flag. With no `ctx`, behavior matches the original signature —
+   * rules and percentage that depend on user/client fields fall through to
+   * the default, which is what `/healthz` and other context-free callers want.
+   */
+  public get<K extends FlagName>(name: K, ctx?: FlagContext): FeatureFlagSchema[K] {
+    const definition = this.flags[name] as FlagDefinition<FeatureFlagSchema[K]>;
+    try {
+      return evaluate(name, definition, ctx);
+    } catch (err) {
+      this.logger.pino.error({ err, flag: name }, 'feature_flag_eval_failed');
+      return definition.default;
+    }
   }
 
-  /** Test/admin only. */
+  /**
+   * Test/admin override. Replaces the entire definition for `name` with a
+   * bare-default form so subsequent `get()` calls see exactly `value` no
+   * matter the context.
+   */
   public set<K extends FlagName>(name: K, value: FeatureFlagSchema[K]): void {
-    this.flags = { ...this.flags, [name]: value };
+    this.flags = { ...this.flags, [name]: { default: value } };
   }
 
   /** Re-read sources. Call on SIGHUP for zero-redeploy flag updates. */
@@ -57,8 +93,10 @@ export class FeatureFlagService {
     this.flags = this.load();
     const changed: Partial<FeatureFlagSchema> = {};
     for (const key of Object.keys(this.flags) as FlagName[]) {
-      if (previous[key] !== this.flags[key]) {
-        (changed as Record<string, unknown>)[key] = this.flags[key];
+      const before = previous[key]?.default;
+      const after = this.flags[key].default;
+      if (before !== after) {
+        (changed as Record<string, unknown>)[key] = after;
       }
     }
     if (Object.keys(changed).length > 0) {
@@ -66,16 +104,31 @@ export class FeatureFlagService {
     }
   }
 
+  /**
+   * Public, context-free snapshot of the evaluated default values. This is
+   * what `/healthz` returns — a frontend reading it learns the *baseline*,
+   * not the rule structure (rules live behind the admin endpoint).
+   */
   public snapshot(): FeatureFlagSchema {
-    return { ...this.flags };
+    const out = {} as FeatureFlagSchema;
+    for (const key of Object.keys(this.flags) as FlagName[]) {
+      (out as Record<FlagName, FlagValue>)[key] = this.flags[key].default;
+    }
+    return out;
   }
 
-  private load(): FeatureFlagSchema {
+  /** Admin-only. Returns the full rich form for ops/dashboard surfaces. */
+  public definitions(): FlagDefinitions {
+    // Defensive copy so callers can't mutate internal state.
+    return JSON.parse(JSON.stringify(this.flags)) as FlagDefinitions;
+  }
+
+  private load(): FlagDefinitions {
     const fromFile = this.readFile();
     return { ...this.defaults, ...fromFile };
   }
 
-  private readFile(): Partial<FeatureFlagSchema> {
+  private readFile(): Partial<FlagDefinitions> {
     if (!this.filePath) return {};
     if (!existsSync(this.filePath)) {
       this.logger.pino.warn({ path: this.filePath }, 'feature_flags_file_missing');
@@ -85,29 +138,153 @@ export class FeatureFlagService {
       const raw = readFileSync(this.filePath, 'utf-8');
       const parsed = JSON.parse(raw) as unknown;
       if (typeof parsed !== 'object' || parsed === null) return {};
-      return this.coerce(parsed as Record<string, unknown>);
+      return this.parseDefinitions(parsed as Record<string, unknown>);
     } catch (error) {
       this.logger.pino.error({ err: error, path: this.filePath }, 'feature_flags_file_read_failed');
       return {};
     }
   }
 
-  private coerce(input: Record<string, unknown>): Partial<FeatureFlagSchema> {
-    const out: Partial<FeatureFlagSchema> = {};
-    if (typeof input.STREAMING_ENABLED === 'boolean')
-      out.STREAMING_ENABLED = input.STREAMING_ENABLED;
-    if (typeof input.AI_TOOLS_ENABLED === 'boolean') out.AI_TOOLS_ENABLED = input.AI_TOOLS_ENABLED;
-    if (typeof input.CHAT_HISTORY_ENABLED === 'boolean')
-      out.CHAT_HISTORY_ENABLED = input.CHAT_HISTORY_ENABLED;
-    if (typeof input.PAGINATION_LIMIT === 'number' && Number.isInteger(input.PAGINATION_LIMIT)) {
-      out.PAGINATION_LIMIT = Math.min(100, Math.max(10, input.PAGINATION_LIMIT));
-    }
-    if (typeof input.RATE_LIMIT_PER_MINUTE === 'number' && input.RATE_LIMIT_PER_MINUTE > 0) {
-      out.RATE_LIMIT_PER_MINUTE = Math.floor(input.RATE_LIMIT_PER_MINUTE);
-    }
-    if (typeof input.COMPLETION_ENABLED === 'boolean') {
-      out.COMPLETION_ENABLED = input.COMPLETION_ENABLED;
+  private parseDefinitions(input: Record<string, unknown>): Partial<FlagDefinitions> {
+    const out: Partial<FlagDefinitions> = {};
+    for (const key of FLAG_NAMES) {
+      const raw = input[key];
+      if (raw === undefined) continue;
+      const definition = this.parseDefinition(key, raw);
+      if (definition) {
+        (out as Record<FlagName, FlagDefinition<FlagValue>>)[key] = definition;
+      }
     }
     return out;
   }
+
+  private parseDefinition(name: FlagName, raw: unknown): FlagDefinition<FlagValue> | null {
+    // Bare primitive — wrap as { default: v } after running the same
+    // clamping rules the env-default path uses.
+    if (typeof raw === 'boolean' || typeof raw === 'number') {
+      const clamped = clampBareValue(name, raw);
+      if (clamped === null) return null;
+      return { default: clamped };
+    }
+    if (typeof raw !== 'object' || raw === null) {
+      this.logger.pino.warn({ flag: name }, 'feature_flags_file_invalid_definition');
+      return null;
+    }
+    const obj = raw as Record<string, unknown>;
+    const defaultValue = clampBareValue(name, obj.default);
+    if (defaultValue === null) {
+      this.logger.pino.warn({ flag: name }, 'feature_flags_file_invalid_definition');
+      return null;
+    }
+    const definition: FlagDefinition<FlagValue> = { default: defaultValue };
+
+    if (Array.isArray(obj.rules)) {
+      const rules = parseRules(name, obj.rules, this.logger);
+      if (rules.length > 0) definition.rules = rules;
+    }
+    if (typeof defaultValue === 'boolean' && typeof obj.percentage === 'number') {
+      const pct = obj.percentage;
+      if (Number.isFinite(pct) && pct >= 0 && pct <= 100) {
+        definition.percentage = Math.floor(pct);
+      } else {
+        this.logger.pino.warn(
+          { flag: name, percentage: pct },
+          'feature_flags_file_invalid_percentage',
+        );
+      }
+    }
+    return definition;
+  }
 }
+
+const FLAG_NAMES: readonly FlagName[] = [
+  'STREAMING_ENABLED',
+  'PAGINATION_LIMIT',
+  'AI_TOOLS_ENABLED',
+  'CHAT_HISTORY_ENABLED',
+  'RATE_LIMIT_PER_MINUTE',
+  'COMPLETION_ENABLED',
+];
+
+const wrapBareDefaults = (bare: FeatureFlagSchema): FlagDefinitions => {
+  const out = {} as FlagDefinitions;
+  for (const key of FLAG_NAMES) {
+    (out as Record<FlagName, FlagDefinition<FlagValue>>)[key] = { default: bare[key] };
+  }
+  return out;
+};
+
+/**
+ * Apply the per-flag bounds the original `coerce()` enforced. Returns null
+ * when the value is the wrong shape for the flag (caller treats null as
+ * "skip this entry, keep env default").
+ */
+const clampBareValue = (name: FlagName, raw: unknown): FlagValue | null => {
+  switch (name) {
+    case 'STREAMING_ENABLED':
+    case 'AI_TOOLS_ENABLED':
+    case 'CHAT_HISTORY_ENABLED':
+    case 'COMPLETION_ENABLED':
+      return typeof raw === 'boolean' ? raw : null;
+    case 'PAGINATION_LIMIT':
+      if (typeof raw === 'number' && Number.isInteger(raw)) {
+        return Math.min(100, Math.max(10, raw));
+      }
+      return null;
+    case 'RATE_LIMIT_PER_MINUTE':
+      if (typeof raw === 'number' && raw > 0) {
+        return Math.floor(raw);
+      }
+      return null;
+  }
+};
+
+const parseRules = (name: FlagName, raw: unknown[], logger: Logger): FlagRule<FlagValue>[] => {
+  const out: FlagRule<FlagValue>[] = [];
+  for (const entry of raw) {
+    if (typeof entry !== 'object' || entry === null) continue;
+    const rule = entry as { if?: unknown; value?: unknown };
+    if (typeof rule.if !== 'object' || rule.if === null) continue;
+    const value = clampBareValue(name, rule.value);
+    if (value === null) {
+      logger.pino.warn({ flag: name }, 'feature_flags_file_invalid_rule_value');
+      continue;
+    }
+    out.push({ if: rule.if as Partial<FlagContext>, value });
+  }
+  return out;
+};
+
+/**
+ * Pure evaluator. Lives outside the class so it's easy to test in isolation
+ * and so the class doesn't need to thread `this` through every branch.
+ */
+const evaluate = <V extends FlagValue>(
+  name: FlagName,
+  definition: FlagDefinition<V>,
+  ctx: FlagContext | undefined,
+): V => {
+  if (ctx && definition.rules) {
+    for (const rule of definition.rules) {
+      if (matchesRule(rule.if, ctx)) {
+        return rule.value;
+      }
+    }
+  }
+  if (
+    typeof definition.percentage === 'number' &&
+    typeof definition.default === 'boolean' &&
+    ctx?.userId
+  ) {
+    const inBucket = bucketFor(name, ctx.userId) < definition.percentage;
+    return inBucket as V;
+  }
+  return definition.default;
+};
+
+const matchesRule = (predicate: Partial<FlagContext>, ctx: FlagContext): boolean => {
+  for (const key of Object.keys(predicate) as (keyof FlagContext)[]) {
+    if (predicate[key] !== ctx[key]) return false;
+  }
+  return true;
+};

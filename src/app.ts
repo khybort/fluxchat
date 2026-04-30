@@ -94,40 +94,58 @@ const buildCors = (container: AppContainer): ReturnType<typeof cors> => {
 };
 
 /**
- * Serverless-friendly equivalent of `kill -HUP $PID`. SIGHUP cannot reach a
- * Vercel function instance, so this POST endpoint asks the live FeatureFlagService
- * to re-read its sources (env defaults + JSON file) and emit a diff log line.
+ * Two admin surfaces, both gated by `ADMIN_TOKEN`:
  *
- * Gated by the `ADMIN_TOKEN` env var — when unset the endpoint deliberately
- * 404s (fail-closed). When set, callers must present `x-admin-token: <token>`
- * matching exactly. Returns the new snapshot on success.
+ *   - POST /admin/flags/reload — serverless-friendly equivalent of `kill -HUP $PID`.
+ *     SIGHUP can't reach a Vercel function instance; this asks the live
+ *     FeatureFlagService to re-read its sources and emit a diff log line.
+ *
+ *   - GET  /admin/flags — returns the FULL rich form (defaults + rules +
+ *     percentages) for ops/dashboard surfaces. Public `/healthz` only sees
+ *     the evaluated default snapshot.
+ *
+ * Fail-closed: when `ADMIN_TOKEN` is unset, both endpoints 404. With the
+ * wrong token, also 404 — same shape so callers can't distinguish "off"
+ * from "wrong token".
  */
+const NOT_FOUND = { error: { code: 'NOT_FOUND', message: 'Admin endpoints disabled' } };
+
 const mountAdminFlagsReload = (app: Express, container: AppContainer): void => {
   const adminToken = container.config.values.app.adminToken;
   if (!adminToken) {
     app.post('/admin/flags/reload', (_req: Request, res: Response) => {
-      res.status(404).json({
-        error: { code: 'NOT_FOUND', message: 'Admin endpoints disabled' },
-      });
+      res.status(404).json(NOT_FOUND);
+    });
+    app.get('/admin/flags', (_req: Request, res: Response) => {
+      res.status(404).json(NOT_FOUND);
     });
     return;
   }
 
-  app.post('/admin/flags/reload', (req: Request, res: Response) => {
+  const requireAdminToken = (req: Request, res: Response): boolean => {
     const presented = req.header('x-admin-token');
     if (!presented || presented !== adminToken) {
-      // Same 404 shape so probing for the endpoint with the wrong token can't
-      // distinguish between "feature off" and "wrong token".
-      return res.status(404).json({
-        error: { code: 'NOT_FOUND', message: 'Admin endpoints disabled' },
-      });
+      res.status(404).json(NOT_FOUND);
+      return false;
     }
+    return true;
+  };
 
+  app.post('/admin/flags/reload', (req: Request, res: Response) => {
+    if (!requireAdminToken(req, res)) return;
     container.flags.reload();
     container.logger.pino.info({ via: 'admin_endpoint' }, 'feature_flags_reloaded_admin');
-    return res.status(200).json({
+    res.status(200).json({
       status: 'reloaded',
       flags: container.flags.snapshot(),
+    });
+  });
+
+  app.get('/admin/flags', (req: Request, res: Response) => {
+    if (!requireAdminToken(req, res)) return;
+    res.status(200).json({
+      definitions: container.flags.definitions(),
+      snapshot: container.flags.snapshot(),
     });
   });
 };

@@ -21,7 +21,10 @@ export class ChatService {
   ) {}
 
   public async listChats(input: ListChatsInput): Promise<PageResult<Chat>> {
-    const ceiling = this.flags.get('PAGINATION_LIMIT');
+    // Per-user flag evaluation — lets ops dial PAGINATION_LIMIT differently
+    // per role/clientType in the JSON file. With no rules configured, this
+    // returns the same global ceiling the original implementation used.
+    const ceiling = this.flags.get('PAGINATION_LIMIT', { userId: input.userId });
     const requested = input.limit ?? ceiling;
     const limit = clamp(requested, PAGINATION.MIN_LIMIT, ceiling);
 

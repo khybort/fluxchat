@@ -6,12 +6,15 @@ import type { ChatTurn } from '../../infrastructure/ai/ai.types.js';
 import type { Logger } from '../../infrastructure/logger/logger.js';
 import { withSpan } from '../../infrastructure/tracing/span.js';
 import { LIMITED_HISTORY_COUNT } from '../../shared/constants.js';
+import type { FlagContext } from '../../shared/feature-flags/feature-flag.types.js';
 
 export interface RunCompletionInput {
   chatId: string;
   userId: string;
   prompt: string;
   signal: AbortSignal;
+  /** Optional per-request flag context. Threaded into the strategy factory. */
+  flagCtx?: FlagContext;
 }
 
 export class CompletionService {
@@ -36,7 +39,7 @@ export class CompletionService {
 
       const history = await this.buildHistory(input.chatId);
 
-      const strategy = this.factory.build(input.signal);
+      const strategy = this.factory.build(input.signal, input.flagCtx);
       return strategy.execute({
         history,
         prompt: input.prompt,

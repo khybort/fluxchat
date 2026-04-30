@@ -3,12 +3,15 @@ import type { Message, PageResult } from './chat.types.js';
 import type { HistoryStrategyFactory } from './strategies/history-strategy.factory.js';
 import { PAGINATION } from '../../shared/constants.js';
 import type { FeatureFlagService } from '../../shared/feature-flags/feature-flag.service.js';
+import type { FlagContext } from '../../shared/feature-flags/feature-flag.types.js';
 
 export interface GetHistoryInput {
   chatId: string;
   userId: string;
   cursor?: string | undefined;
   limit?: number | undefined;
+  /** Optional per-request flag context — controllers pass this from `flagContextFrom(req)`. */
+  flagCtx?: FlagContext;
 }
 
 const clamp = (value: number, min: number, max: number): number =>
@@ -24,11 +27,12 @@ export class HistoryService {
   public async getHistory(input: GetHistoryInput): Promise<PageResult<Message>> {
     await this.chatService.ensureOwnership(input.chatId, input.userId);
 
-    const ceiling = this.flags.get('PAGINATION_LIMIT');
+    const ctx: FlagContext = input.flagCtx ?? { userId: input.userId };
+    const ceiling = this.flags.get('PAGINATION_LIMIT', ctx);
     const requested = input.limit ?? ceiling;
     const limit = clamp(requested, PAGINATION.MIN_LIMIT, ceiling);
 
-    const strategy = this.factory.build();
+    const strategy = this.factory.build(ctx);
     return strategy.execute({
       chatId: input.chatId,
       cursor: input.cursor,

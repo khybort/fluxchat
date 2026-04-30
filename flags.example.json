@@ -1,0 +1,25 @@
+{
+  "_comment": "Sample feature-flag overrides. Both forms are accepted side-by-side: bare primitives keep the original behavior, rich objects unlock context-aware evaluation. Set FEATURE_FLAGS_FILE=flags.example.json (or any path) and either send SIGHUP or POST /admin/flags/reload to apply changes without restart.",
+
+  "STREAMING_ENABLED": true,
+
+  "PAGINATION_LIMIT": 50,
+
+  "CHAT_HISTORY_ENABLED": {
+    "default": true,
+    "rules": [
+      { "if": { "userRole": "admin" }, "value": true },
+      { "if": { "clientType": "mobile" }, "value": false }
+    ]
+  },
+
+  "AI_TOOLS_ENABLED": {
+    "default": false,
+    "rules": [{ "if": { "userRole": "admin" }, "value": true }],
+    "percentage": 25
+  },
+
+  "RATE_LIMIT_PER_MINUTE": 120,
+
+  "COMPLETION_ENABLED": true
+}

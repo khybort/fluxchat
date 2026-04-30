@@ -5,7 +5,7 @@ import '../../src/modules/chat/chat.openapi.js';
 import '../../src/modules/healthz.openapi.js';
 
 import cors from 'cors';
-import express, { json as expressJson, type Express } from 'express';
+import express, { type Request, json as expressJson, type Express } from 'express';
 import helmet from 'helmet';
 // jsonwebtoken is CJS-only — keep the default import for ESM interop.
 // eslint-disable-next-line import/no-named-as-default
@@ -86,17 +86,31 @@ export const buildTestApp = (
     res.status(200).json({ status: 'ok', flags: flags.snapshot() });
   });
 
-  // Mirror app.ts admin reload endpoint so its behavior is integration-tested.
+  // Mirror app.ts admin endpoints so their behavior is integration-tested.
   const adminToken = config.values.app.adminToken;
-  app.post('/admin/flags/reload', (req, res) => {
+  const requireAdmin = (req: Request): boolean => {
     const presented = req.header('x-admin-token');
-    if (!adminToken || !presented || presented !== adminToken) {
+    return Boolean(adminToken && presented && presented === adminToken);
+  };
+  app.post('/admin/flags/reload', (req, res) => {
+    if (!requireAdmin(req)) {
       return res.status(404).json({
         error: { code: 'NOT_FOUND', message: 'Admin endpoints disabled' },
       });
     }
     flags.reload();
     return res.status(200).json({ status: 'reloaded', flags: flags.snapshot() });
+  });
+  app.get('/admin/flags', (req, res) => {
+    if (!requireAdmin(req)) {
+      return res.status(404).json({
+        error: { code: 'NOT_FOUND', message: 'Admin endpoints disabled' },
+      });
+    }
+    return res.status(200).json({
+      definitions: flags.definitions(),
+      snapshot: flags.snapshot(),
+    });
   });
 
   // Mirror app.ts: docs come before appCheck so they're browsable without a token.

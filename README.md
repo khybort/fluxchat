@@ -176,11 +176,47 @@ Same request, returns `{"message": {"role":"assistant","content":"..."}, "toolCa
 
 The first four flags drive **behavior** via the Strategy + Factory pair (e.g. [`CompletionStrategyFactory`](./src/modules/chat/strategies/completion-strategy.factory.ts), [`HistoryStrategyFactory`](./src/modules/chat/strategies/history-strategy.factory.ts)) — controllers stay branch-free. `COMPLETION_ENABLED` is a route-specific **middleware** kill-switch via [`featureFlagGuard`](./src/shared/middleware/feature-flag-guard.ts) — when off, the completion route short-circuits with 404 (case §6 "Important Note": route-specific feature checks).
 
+### Targeting & rollout (rule + percentage)
+
+The JSON file at `FEATURE_FLAGS_FILE` accepts two shapes side-by-side. The bare primitive form is the original behavior — every user gets the same value:
+
+```jsonc
+{ "STREAMING_ENABLED": true }
+```
+
+The rich form unlocks **per-user / per-segment evaluation** (case §Business Context: "A/B test with specific user groups", "limit expensive features to premium users", "roll out features gradually"):
+
+```jsonc
+{
+  "CHAT_HISTORY_ENABLED": {
+    "default": true,
+    "rules": [
+      { "if": { "userRole": "admin" }, "value": true },
+      { "if": { "clientType": "mobile" }, "value": false }
+    ]
+  },
+  "AI_TOOLS_ENABLED": {
+    "default": false,
+    "rules": [{ "if": { "userRole": "admin" }, "value": true }],
+    "percentage": 25
+  }
+}
+```
+
+Evaluation order per `flags.get(name, ctx)` call:
+1. **Rules** — walked in declaration order, first match wins. Every key in `if` must equal the matching field in `ctx` (AND); missing keys are wildcards.
+2. **Percentage** — boolean flags only. The user is bucketed via `sha1(flagName + userId) % 100`, deterministic across runs, so a user "in" the rollout stays in. Different flags use different buckets so rollouts don't pile on the same users.
+3. **Default** — fallback.
+
+Context fields are sourced from [`flagContextFrom(req)`](./src/shared/feature-flags/context.ts): `userId`, `clientType`, `userRole`. `plan` is reserved for a future subscription-tier hook. A complete sample lives at [`flags.example.json`](./flags.example.json).
+
+`/healthz` returns the **evaluated default** snapshot only — no rule structure leaks publicly. Ops surfaces hit `GET /admin/flags` (token-gated) for the rich form.
+
 ### Toggle without redeploy
 
-Two options, both work without restarting the process:
+Three options, all without restarting the process:
 
-**A. JSON file + SIGHUP** (recommended for ops):
+**A. JSON file + SIGHUP** (recommended for self-hosted):
 
 ```bash
 echo '{"STREAMING_ENABLED": false}' > flags.json
@@ -192,13 +228,29 @@ echo '{"STREAMING_ENABLED": true}' > flags.json
 kill -HUP $APP_PID
 ```
 
-**B. Env var change + restart**: for orchestrated deployments where the orchestrator can update env and replace the process.
+**B. Admin endpoint** (recommended for serverless — `kill -HUP` doesn't reach a Vercel lambda):
 
-The `/healthz` endpoint exposes the current snapshot:
+```bash
+curl -X POST https://fluxchat-api.vercel.app/admin/flags/reload \
+     -H "x-admin-token: $ADMIN_TOKEN"
+# Returns the new snapshot. Set ADMIN_TOKEN (≥16 chars) on Vercel; without it
+# both /admin/flags routes fail-closed with 404.
+```
+
+**C. Env var change + restart**: for orchestrated deployments where the orchestrator can update env and replace the process.
+
+`/healthz` exposes the public, context-free snapshot. `GET /admin/flags` returns the full rich-form definitions for ops:
 
 ```bash
 curl -s http://localhost:3000/healthz | jq .flags
+curl -s -H "x-admin-token: $ADMIN_TOKEN" http://localhost:3000/admin/flags | jq
 ```
+
+### Multi-instance consistency (known limitation)
+
+Flag state lives in-process. On Vercel serverless this means each warm lambda instance holds its own copy. SIGHUP reaches the process that received it; `POST /admin/flags/reload` reaches the one lambda that handled the request. **Other warm instances see the change either on their own next reload trigger or on cold start.** For most flags this is fine — kill-switches converge in seconds as instances recycle, and low-traffic free-tier deploys typically have one warm instance.
+
+For sub-second cross-instance consistency on a paid-tier production fleet, the canonical pattern is **Redis pub/sub on a `flags:reload` channel** — one publisher (the admin endpoint) and N subscribers (each lambda boot). The project already wires `ioredis` for the rate-limit store, so the upgrade path is well-paved when the product needs it. Out of scope for the current free-tier deploy.
 
 ## Tests
 
