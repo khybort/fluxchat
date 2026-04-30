@@ -1,15 +1,13 @@
 import type { Express } from 'express';
-import {
-  serveFiles as swaggerServeFiles,
-  setup as swaggerSetup,
-  type SwaggerUiOptions,
-} from 'swagger-ui-express';
+// swagger-ui-express is CJS-only — default import is required at runtime.
+// eslint-disable-next-line import/no-named-as-default
+import swaggerUi from 'swagger-ui-express';
 
 import { buildOpenApiSpec } from './build-spec.js';
 import type { Logger } from '../../infrastructure/logger/logger.js';
 import { NotFoundError } from '../errors/app-error.js';
 
-const SWAGGER_UI_OPTIONS: SwaggerUiOptions = {
+const SWAGGER_UI_OPTIONS: swaggerUi.SwaggerUiOptions = {
   customSiteTitle: 'AppNation Chat API',
   swaggerOptions: {
     persistAuthorization: true,
@@ -54,8 +52,8 @@ export const mountDocs = (app: Express, options: MountDocsOptions): void => {
     res.status(200).json(spec);
   });
 
-  app.use('/docs', swaggerServeFiles(spec, SWAGGER_UI_OPTIONS));
-  app.get('/docs', swaggerSetup(spec, SWAGGER_UI_OPTIONS));
+  app.use('/docs', swaggerUi.serveFiles(spec, SWAGGER_UI_OPTIONS));
+  app.get('/docs', swaggerUi.setup(spec, SWAGGER_UI_OPTIONS));
 
   options.logger.pino.info({ paths: Object.keys(spec.paths ?? {}).length }, 'docs_mounted');
 };

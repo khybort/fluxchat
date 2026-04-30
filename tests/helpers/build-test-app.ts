@@ -7,7 +7,9 @@ import '../../src/modules/healthz.openapi.js';
 import cors from 'cors';
 import express, { json as expressJson, type Express } from 'express';
 import helmet from 'helmet';
-import { sign as jwtSign } from 'jsonwebtoken';
+// jsonwebtoken is CJS-only — keep the default import for ESM interop.
+// eslint-disable-next-line import/no-named-as-default
+import jwt from 'jsonwebtoken';
 
 import { InMemoryChatRepository, InMemoryMessageRepository } from './in-memory-repositories.js';
 import { InMemoryUserRepository } from './in-memory-user-repository.js';
@@ -111,7 +113,8 @@ export const buildTestApp = (
   app.use(errorHandler);
 
   const signToken = (userId: string, email = `${userId}@example.test`): string =>
-    jwtSign({ sub: userId, email }, config.values.auth.jwtSecret);
+    // eslint-disable-next-line import/no-named-as-default-member
+    jwt.sign({ sub: userId, email }, config.values.auth.jwtSecret);
 
   const appCheckHeaders = (): Record<string, string> => ({
     'x-firebase-app-check': config.values.app.appCheckToken,
