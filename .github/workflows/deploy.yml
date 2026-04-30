@@ -49,6 +49,10 @@ jobs:
     env:
       VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
       VERCEL_PROJECT_ID: ${{ secrets.VERCEL_BACKEND_PROJECT_ID }}
+      # Vercel CLI reads VERCEL_TOKEN automatically. Passing it as `--token`
+      # on the command line gets corrupted by GitHub's automatic secret
+      # redaction (literal `***` substitution), so we use the env var instead.
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
     steps:
       - uses: actions/checkout@v4
 
@@ -63,13 +67,13 @@ jobs:
         run: npm install -g vercel@latest
 
       - name: Pull Vercel environment
-        run: vercel pull --yes --environment=production --token=${{ secrets.VERCEL_TOKEN }}
+        run: vercel pull --yes --environment=production
 
       - name: Build (Vercel)
-        run: vercel build --prod --token=${{ secrets.VERCEL_TOKEN }}
+        run: vercel build --prod
 
       - name: Deploy (Vercel)
-        run: vercel deploy --prebuilt --prod --token=${{ secrets.VERCEL_TOKEN }}
+        run: vercel deploy --prebuilt --prod
 
   deploy-frontend:
     name: Deploy frontend (Vercel)
@@ -79,6 +83,7 @@ jobs:
     env:
       VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
       VERCEL_PROJECT_ID: ${{ secrets.VERCEL_FRONTEND_PROJECT_ID }}
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
     steps:
       - uses: actions/checkout@v4
 
@@ -93,10 +98,10 @@ jobs:
         run: npm install -g vercel@latest
 
       - name: Pull Vercel environment
-        run: vercel pull --yes --environment=production --cwd ./frontend --token=${{ secrets.VERCEL_TOKEN }}
+        run: vercel pull --yes --environment=production --cwd ./frontend
 
       - name: Build (Vercel)
-        run: vercel build --prod --cwd ./frontend --token=${{ secrets.VERCEL_TOKEN }}
+        run: vercel build --prod --cwd ./frontend
 
       - name: Deploy (Vercel)
-        run: vercel deploy --prebuilt --prod --cwd ./frontend --token=${{ secrets.VERCEL_TOKEN }}
+        run: vercel deploy --prebuilt --prod --cwd ./frontend
