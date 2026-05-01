@@ -46,6 +46,15 @@ export const EnvSchema = z.object({
   // redeploy. Enforced by featureFlagGuard middleware on the route.
   COMPLETION_ENABLED: booleanFromString.default(true),
 
+  // Per-tool toggles. AI_TOOLS_ENABLED is the master switch; these are the
+  // granular per-tool subordinates. All default to true so adding a new
+  // tool to the catalog doesn't surprise existing deployments.
+  TOOL_CALCULATOR_ENABLED: booleanFromString.default(true),
+  TOOL_CURRENT_TIME_ENABLED: booleanFromString.default(true),
+  TOOL_CURRENT_WEATHER_ENABLED: booleanFromString.default(true),
+  TOOL_CONVERT_CURRENCY_ENABLED: booleanFromString.default(true),
+  TOOL_SEARCH_WEB_ENABLED: booleanFromString.default(true),
+
   // OpenAPI / Swagger documentation toggle. Default ON; flip to false in prod
   // (or front it with a reverse-proxy auth) if /docs should not be public.
   DOCS_ENABLED: booleanFromString.default(true),

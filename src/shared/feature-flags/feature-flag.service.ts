@@ -255,6 +255,11 @@ const FLAG_NAMES: readonly FlagName[] = [
   'CHAT_HISTORY_ENABLED',
   'RATE_LIMIT_PER_MINUTE',
   'COMPLETION_ENABLED',
+  'TOOL_CALCULATOR_ENABLED',
+  'TOOL_CURRENT_TIME_ENABLED',
+  'TOOL_CURRENT_WEATHER_ENABLED',
+  'TOOL_CONVERT_CURRENCY_ENABLED',
+  'TOOL_SEARCH_WEB_ENABLED',
 ];
 
 const wrapBareDefaults = (bare: FeatureFlagSchema): FlagDefinitions => {
@@ -276,6 +281,11 @@ const clampBareValue = (name: FlagName, raw: unknown): FlagValue | null => {
     case 'AI_TOOLS_ENABLED':
     case 'CHAT_HISTORY_ENABLED':
     case 'COMPLETION_ENABLED':
+    case 'TOOL_CALCULATOR_ENABLED':
+    case 'TOOL_CURRENT_TIME_ENABLED':
+    case 'TOOL_CURRENT_WEATHER_ENABLED':
+    case 'TOOL_CONVERT_CURRENCY_ENABLED':
+    case 'TOOL_SEARCH_WEB_ENABLED':
       return typeof raw === 'boolean' ? raw : null;
     case 'PAGINATION_LIMIT':
       if (typeof raw === 'number' && Number.isInteger(raw)) {

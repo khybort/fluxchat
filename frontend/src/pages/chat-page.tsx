@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { toast } from 'sonner';
 
-import { completion, createChat, getHealthz, getHistory } from '@/api/chat';
+import { completion, createChat, getHistory } from '@/api/chat';
 import { ApiError } from '@/api/client';
 import { openSseStream } from '@/api/sse';
 import type {
@@ -24,6 +24,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { uuid } from '@/lib/uuid';
 import { useAuthStore } from '@/store/auth-store';
 import { useChatStore } from '@/store/chat-store';
+import { useFlagsStore } from '@/store/flags-store';
 
 type Phase = 'idle' | 'thinking' | 'tool' | 'streaming';
 
@@ -44,7 +45,10 @@ export const ChatPage = (): React.JSX.Element => {
   const [loadingHistory, setLoadingHistory] = useState(false);
   const [pending, setPending] = useState<PendingMessage | null>(null);
   const [busy, setBusy] = useState(false);
-  const [flags, setFlags] = useState<FeatureFlagsSnapshot | null>(null);
+  // Flags come from the shared zustand store so admin edits in /admin/flags
+  // (or another tab) propagate here without a hard refresh.
+  const flags = useFlagsStore((s) => s.flags);
+  const refreshFlags = useFlagsStore((s) => s.refresh);
   const abortRef = useRef<AbortController | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   // Tracks the chatId we just minted in `handleSend`. The chatId-watcher
@@ -55,18 +59,11 @@ export const ChatPage = (): React.JSX.Element => {
   // wipe the state right after navigate().
   const justCreatedChatIdRef = useRef<string | null>(null);
 
-  // Initial flags snapshot
+  // Lazy-hydrate the store on first mount in case AppShell hasn't finished
+  // its own fetch yet (e.g. direct deep-link to a chat URL).
   useEffect(() => {
-    let cancelled = false;
-    void getHealthz()
-      .then((res) => {
-        if (!cancelled) setFlags(res.flags);
-      })
-      .catch(() => undefined);
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+    if (!flags) void refreshFlags();
+  }, [flags, refreshFlags]);
 
   // Load history when chat changes
   useEffect(() => {

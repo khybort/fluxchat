@@ -122,6 +122,37 @@ export async function* openSseStream(req: StreamRequest): AsyncGenerator<StreamE
     );
   }
 
+  // Robustness against client/server STREAMING_ENABLED mismatch: if the
+  // server flipped the flag off (admin disabled streaming) while the client
+  // still has the cached `true` and called the SSE path, the response comes
+  // back as `application/json`. Adapt by translating the JSON body into the
+  // same event sequence the SSE path would have yielded — caller code
+  // doesn't have to branch.
+  const contentType = res.headers.get('content-type') ?? '';
+  if (contentType.includes('application/json')) {
+    const json = (await res.json()) as {
+      message?: { content?: string };
+      toolCalls?: Array<{ name: string; args: Record<string, unknown>; result: unknown }>;
+      usage?: { promptTokens?: number; completionTokens?: number };
+    };
+    yield { type: 'thinking' };
+    for (const tool of json.toolCalls ?? []) {
+      yield { type: 'tool_execution', tool };
+    }
+    const text = json.message?.content ?? '';
+    if (text) yield { type: 'delta', text };
+    yield {
+      type: 'done',
+      fullText: text,
+      ...(json.usage
+        ? {
+            usage: json.usage as StreamEvent extends { type: 'done'; usage?: infer U } ? U : never,
+          }
+        : {}),
+    };
+    return;
+  }
+
   const reader = res.body?.getReader();
   if (!reader) throw new Error('Streaming not supported in this environment');
 

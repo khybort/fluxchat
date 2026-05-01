@@ -32,7 +32,12 @@ export type FlagName =
   | 'AI_TOOLS_ENABLED'
   | 'CHAT_HISTORY_ENABLED'
   | 'RATE_LIMIT_PER_MINUTE'
-  | 'COMPLETION_ENABLED';
+  | 'COMPLETION_ENABLED'
+  | 'TOOL_CALCULATOR_ENABLED'
+  | 'TOOL_CURRENT_TIME_ENABLED'
+  | 'TOOL_CURRENT_WEATHER_ENABLED'
+  | 'TOOL_CONVERT_CURRENCY_ENABLED'
+  | 'TOOL_SEARCH_WEB_ENABLED';
 
 export interface AdminFlagsResponse {
   definitions: Record<FlagName, FlagDefinition>;
@@ -115,6 +120,11 @@ export interface FeatureFlagsSnapshot {
   CHAT_HISTORY_ENABLED: boolean;
   RATE_LIMIT_PER_MINUTE: number;
   COMPLETION_ENABLED: boolean;
+  TOOL_CALCULATOR_ENABLED: boolean;
+  TOOL_CURRENT_TIME_ENABLED: boolean;
+  TOOL_CURRENT_WEATHER_ENABLED: boolean;
+  TOOL_CONVERT_CURRENCY_ENABLED: boolean;
+  TOOL_SEARCH_WEB_ENABLED: boolean;
 }
 
 export interface HealthzResponse {

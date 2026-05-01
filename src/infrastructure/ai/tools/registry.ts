@@ -29,6 +29,33 @@ export const ALL_TOOLS: AnyToolDefinition[] = [
   searchWebTool as AnyToolDefinition,
 ];
 
+/**
+ * Returns the subset of tools whose name appears in `enabled`. When `enabled`
+ * is undefined (callers that don't care about per-tool gating, e.g. the mock
+ * provider's intent dispatcher), every tool is returned. Empty array =
+ * everything disabled — model gets no tools at all.
+ */
+const filterByEnabled = (enabled: readonly string[] | undefined): AnyToolDefinition[] => {
+  if (enabled === undefined) return ALL_TOOLS;
+  return ALL_TOOLS.filter((t) => enabled.includes(t.name));
+};
+
+/**
+ * Maps each tool name to the FeatureFlagSchema key that gates it. Strategies
+ * use this to compute the enabled-tools list at request time without hard-
+ * coding flag names per provider — adding a new tool means adding ONE entry
+ * here plus the flag in feature-flag.types.ts.
+ */
+export const TOOL_GATE_FLAGS = {
+  calculator: 'TOOL_CALCULATOR_ENABLED',
+  getCurrentTime: 'TOOL_CURRENT_TIME_ENABLED',
+  getCurrentWeather: 'TOOL_CURRENT_WEATHER_ENABLED',
+  convertCurrency: 'TOOL_CONVERT_CURRENCY_ENABLED',
+  searchWeb: 'TOOL_SEARCH_WEB_ENABLED',
+} as const;
+
+export type ToolGateFlagName = (typeof TOOL_GATE_FLAGS)[keyof typeof TOOL_GATE_FLAGS];
+
 /** Lookup by name. Returns undefined for unknown tools. */
 export const findTool = (name: string): AnyToolDefinition | undefined =>
   ALL_TOOLS.find((t) => t.name === name);
@@ -70,13 +97,19 @@ interface AnthropicInputSchema {
  * Anthropic schema: each tool needs name + description + JSON Schema in
  * `input_schema`. Generated from the zod schema so the source of truth
  * stays in `<tool>.tool.ts`.
+ *
+ * `enabled` (optional): list of tool names to include — defaults to all.
+ * Strategies pass the per-flag-filtered list so disabled tools don't reach
+ * the model in the first place.
  */
-export const toAnthropicTools = (): Array<{
+export const toAnthropicTools = (
+  enabled?: readonly string[],
+): Array<{
   name: string;
   description: string;
   input_schema: AnthropicInputSchema;
 }> =>
-  ALL_TOOLS.map((t) => {
+  filterByEnabled(enabled).map((t) => {
     // `jsonSchema7` produces draft-07, which Anthropic accepts under their
     // "must match JSON Schema draft 2020-12" rule (the keywords we use —
     // type, properties, required, enum, minimum/maximum — are unchanged
@@ -101,9 +134,9 @@ export const toAnthropicTools = (): Array<{
  * OpenAI providers (which both speak the OpenAI-compatible Vercel AI SDK
  * tool protocol).
  */
-export const toAiSdkTools = (): ToolSet => {
+export const toAiSdkTools = (enabled?: readonly string[]): ToolSet => {
   const out: ToolSet = {};
-  for (const t of ALL_TOOLS) {
+  for (const t of filterByEnabled(enabled)) {
     out[t.name] = tool({
       description: t.description,
       parameters: t.parameters,
@@ -116,12 +149,14 @@ export const toAiSdkTools = (): ToolSet => {
 /**
  * Mock-provider helper: walk every tool's `detectIntent`, fire the first
  * match. Lets the deterministic mock provider exercise tools end-to-end
- * without a real model.
+ * without a real model. Honours the same `enabled` allowlist so the mock
+ * stays consistent with the real providers.
  */
 export const detectToolIntent = async (
   prompt: string,
+  enabled?: readonly string[],
 ): Promise<{ name: string; args: unknown; result: unknown } | null> => {
-  for (const t of ALL_TOOLS) {
+  for (const t of filterByEnabled(enabled)) {
     const args = t.detectIntent?.(prompt);
     if (args == null) continue;
     const result = await executeTool(t.name, args);

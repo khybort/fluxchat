@@ -39,7 +39,7 @@ export class OpenAiProvider implements IAiProvider {
     const result = await generateText({
       model: this.modelRef,
       messages: this.buildMessages(request),
-      ...(request.toolsEnabled ? { tools: this.buildTools() } : {}),
+      ...(request.toolsEnabled ? { tools: this.buildTools(request.enabledTools) } : {}),
     });
 
     const toolCalls: ToolCall[] = (result.toolCalls ?? []).map((call, index) => {
@@ -74,7 +74,7 @@ export class OpenAiProvider implements IAiProvider {
       model: this.modelRef,
       messages: this.buildMessages(request),
       abortSignal: signal,
-      ...(request.toolsEnabled ? { tools: this.buildTools() } : {}),
+      ...(request.toolsEnabled ? { tools: this.buildTools(request.enabledTools) } : {}),
     });
 
     let fullText = '';
@@ -137,9 +137,10 @@ export class OpenAiProvider implements IAiProvider {
     ];
   }
 
-  private buildTools() {
-    // Sourced from src/infrastructure/ai/tools/registry.ts — adding a tool there
-    // exposes it to every provider with no per-provider edit.
-    return toAiSdkTools();
+  private buildTools(enabledTools?: readonly string[]) {
+    // Sourced from src/infrastructure/ai/tools/registry.ts — adding a tool
+    // there exposes it to every provider with no per-provider edit. Per-tool
+    // flag gating is applied here.
+    return toAiSdkTools(enabledTools);
   }
 }

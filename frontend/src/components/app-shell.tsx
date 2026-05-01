@@ -11,8 +11,6 @@ import {
 import { useEffect, useState } from 'react';
 import { Link, Outlet, useNavigate } from 'react-router-dom';
 
-import { getHealthz } from '@/api/chat';
-import type { FeatureFlagsSnapshot } from '@/api/types';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -27,6 +25,7 @@ import {
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { cn, initialsOf } from '@/lib/utils';
 import { useAuthStore } from '@/store/auth-store';
+import { useFlagsStore } from '@/store/flags-store';
 
 import { ChatSidebar } from './chat-sidebar';
 import { FeatureFlagsPanel } from './feature-flags-panel';
@@ -36,19 +35,20 @@ export const AppShell = (): React.JSX.Element => {
   const user = useAuthStore((s) => s.user);
   const clear = useAuthStore((s) => s.clear);
   const [mobileOpen, setMobileOpen] = useState(false);
-  const [flags, setFlags] = useState<FeatureFlagsSnapshot | null>(null);
+  const flags = useFlagsStore((s) => s.flags);
+  const refreshFlags = useFlagsStore((s) => s.refresh);
 
+  // Hydrate the flags store on mount + whenever the tab regains focus, so a
+  // change made in another tab (or the admin UI on this tab) shows up in the
+  // sidebar without a hard refresh. The store de-dupes in-flight requests.
   useEffect(() => {
-    let cancelled = false;
-    void getHealthz()
-      .then((res) => {
-        if (!cancelled) setFlags(res.flags);
-      })
-      .catch(() => undefined);
-    return () => {
-      cancelled = true;
+    void refreshFlags();
+    const onFocus = (): void => {
+      void refreshFlags();
     };
-  }, []);
+    window.addEventListener('focus', onFocus);
+    return () => window.removeEventListener('focus', onFocus);
+  }, [refreshFlags]);
 
   const handleLogout = (): void => {
     clear();

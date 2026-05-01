@@ -113,7 +113,7 @@ export class AnthropicProvider implements IAiProvider {
       max_tokens: this.maxTokens,
       messages,
       ...(system ? { system } : {}),
-      ...(request.toolsEnabled ? { tools: toAnthropicTools() } : {}),
+      ...(request.toolsEnabled ? { tools: toAnthropicTools(request.enabledTools) } : {}),
     });
 
     const toolCalls: ToolCall[] = [];
@@ -173,7 +173,7 @@ export class AnthropicProvider implements IAiProvider {
       max_tokens: this.maxTokens,
       messages,
       ...(system ? { system } : {}),
-      ...(request.toolsEnabled ? { tools: toAnthropicTools() } : {}),
+      ...(request.toolsEnabled ? { tools: toAnthropicTools(request.enabledTools) } : {}),
     });
 
     const blocks = new Map<number, StreamingBlock>();

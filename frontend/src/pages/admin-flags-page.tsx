@@ -12,6 +12,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
 import { useAuthStore } from '@/store/auth-store';
+import { useFlagsStore } from '@/store/flags-store';
 
 import { FlagEditor } from './admin/flag-editor';
 
@@ -23,57 +24,112 @@ interface FlagDescriptor {
   effect: string;
 }
 
-const FLAGS: FlagDescriptor[] = [
+interface FlagGroup {
+  title: string;
+  /** Optional caption rendered under the group heading. */
+  hint?: string;
+  flags: FlagDescriptor[];
+}
+
+const FLAG_GROUPS: FlagGroup[] = [
   {
-    name: 'STREAMING_ENABLED',
-    blurb: 'Stream the AI response token-by-token via SSE.',
-    effect: 'Off → response arrives as a single JSON payload, no streaming caret.',
+    title: 'Core',
+    flags: [
+      {
+        name: 'STREAMING_ENABLED',
+        blurb: 'Stream the AI response token-by-token via SSE.',
+        effect: 'Off → response arrives as a single JSON payload, no streaming caret.',
+      },
+      {
+        name: 'AI_TOOLS_ENABLED',
+        blurb: 'Master switch for the AI tool catalog.',
+        effect: 'Off → no tools are exposed to the model regardless of per-tool flags below.',
+      },
+      {
+        name: 'CHAT_HISTORY_ENABLED',
+        blurb: 'Return the full message history (cursor-paginated).',
+        effect: 'Off → only the last 10 messages are returned. Useful for mobile / free tier.',
+      },
+      {
+        name: 'PAGINATION_LIMIT',
+        blurb: 'Maximum items per page in the chat list and history.',
+        effect: 'Numeric ceiling — clamped to [10, 100] when read.',
+      },
+      {
+        name: 'RATE_LIMIT_PER_MINUTE',
+        blurb: 'Per-route, per-(user, clientType) request ceiling each minute.',
+        effect: 'Lower → 429 hits sooner. Mobile + web sessions track separate buckets.',
+      },
+      {
+        name: 'COMPLETION_ENABLED',
+        blurb: 'Kill-switch for the AI completion route.',
+        effect:
+          'Off → POST /api/chats/:id/completion returns 404 FEATURE_DISABLED. Other routes unaffected.',
+      },
+    ],
   },
   {
-    name: 'AI_TOOLS_ENABLED',
-    blurb: 'Let the AI call mocked tools (calculator, weather, search, …).',
-    effect: 'Off → the AI replies from training data only; no tool execution cards.',
-  },
-  {
-    name: 'CHAT_HISTORY_ENABLED',
-    blurb: 'Return the full message history (cursor-paginated).',
-    effect: 'Off → only the last 10 messages are returned. Useful for mobile / free tier.',
-  },
-  {
-    name: 'PAGINATION_LIMIT',
-    blurb: 'Maximum items per page in the chat list and history.',
-    effect: 'Numeric ceiling — clamped to [10, 100] when read.',
-  },
-  {
-    name: 'RATE_LIMIT_PER_MINUTE',
-    blurb: 'Per-route, per-(user, clientType) request ceiling each minute.',
-    effect: 'Lower → 429 hits sooner. Mobile + web sessions track separate buckets.',
-  },
-  {
-    name: 'COMPLETION_ENABLED',
-    blurb: 'Kill-switch for the AI completion route.',
-    effect:
-      'Off → POST /api/chats/:id/completion returns 404 FEATURE_DISABLED. Other routes unaffected.',
+    title: 'AI Tools',
+    hint: 'Subordinate to AI_TOOLS_ENABLED — flagged off here means the tool is hidden from the model even when the master switch is on.',
+    flags: [
+      {
+        name: 'TOOL_CALCULATOR_ENABLED',
+        blurb: 'Safe arithmetic evaluation (+ - × ÷ and parentheses).',
+        effect: "Off → math questions are answered from the model's training, no tool card.",
+      },
+      {
+        name: 'TOOL_CURRENT_TIME_ENABLED',
+        blurb: 'IANA-timezone-aware current date + time.',
+        effect: 'Off → "what time is it in Tokyo?" answered without tool grounding.',
+      },
+      {
+        name: 'TOOL_CURRENT_WEATHER_ENABLED',
+        blurb: 'Mock weather lookup (deterministic — same city, same numbers).',
+        effect: 'Off → weather questions answered from training data, often with disclaimers.',
+      },
+      {
+        name: 'TOOL_CONVERT_CURRENCY_ENABLED',
+        blurb: 'FX conversion over USD / EUR / TRY / GBP / JPY / CHF / CAD.',
+        effect: 'Off → currency conversion answered from stale training-time rates.',
+      },
+      {
+        name: 'TOOL_SEARCH_WEB_ENABLED',
+        blurb: 'Real DuckDuckGo Instant Answer search (no API key, 4s timeout).',
+        effect: 'Off → no live web grounding, model answers from training data only.',
+      },
+    ],
   },
 ];
 
 export const AdminFlagsPage = (): React.JSX.Element => {
   const token = useAuthStore((s) => s.token) ?? '';
+  // Mirror every successful response into the global flags store so the
+  // sidebar's "Runtime feature flags" panel + chat page reflect edits
+  // immediately — no hard refresh, no /healthz round-trip needed.
+  const setFlags = useFlagsStore((s) => s.setFlags);
   const [data, setData] = useState<AdminFlagsResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [reloading, setReloading] = useState(false);
   const [editing, setEditing] = useState<FlagName | null>(null);
 
+  const applyResponse = useCallback(
+    (response: AdminFlagsResponse) => {
+      setData(response);
+      setFlags(response.snapshot);
+    },
+    [setFlags],
+  );
+
   const refresh = useCallback(async () => {
     if (!token) return;
     try {
       const response = await listAdminFlags(token);
-      setData(response);
+      applyResponse(response);
     } catch (err) {
       const message = err instanceof ApiError ? err.message : 'Failed to load flags';
       toast.error(message);
     }
-  }, [token]);
+  }, [applyResponse, token]);
 
   useEffect(() => {
     let cancelled = false;
@@ -89,7 +145,7 @@ export const AdminFlagsPage = (): React.JSX.Element => {
   const handleSave = async (name: FlagName, definition: FlagDefinition): Promise<void> => {
     try {
       const response = await updateAdminFlag(token, name, definition);
-      setData(response);
+      applyResponse(response);
       toast.success(`${name} updated`);
       setEditing(null);
     } catch (err) {
@@ -102,7 +158,7 @@ export const AdminFlagsPage = (): React.JSX.Element => {
     if (!window.confirm(`Clear override for ${name}? Falls back to file/env default.`)) return;
     try {
       const response = await clearAdminFlag(token, name);
-      setData(response);
+      applyResponse(response);
       toast.success(`${name} override cleared`);
     } catch (err) {
       const message = err instanceof ApiError ? err.message : 'Clear failed';
@@ -162,17 +218,31 @@ export const AdminFlagsPage = (): React.JSX.Element => {
           {loading || !data ? (
             <FlagListSkeleton />
           ) : (
-            <ul className="space-y-3">
-              {FLAGS.map((flag) => (
-                <FlagRow
-                  key={flag.name}
-                  descriptor={flag}
-                  data={data}
-                  onEdit={() => setEditing(flag.name)}
-                  onClear={() => void handleClear(flag.name)}
-                />
+            <div className="space-y-8">
+              {FLAG_GROUPS.map((group) => (
+                <section key={group.title} className="space-y-3">
+                  <div>
+                    <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+                      {group.title}
+                    </h2>
+                    {group.hint ? (
+                      <p className="mt-1 text-xs text-muted-foreground/80">{group.hint}</p>
+                    ) : null}
+                  </div>
+                  <ul className="space-y-3">
+                    {group.flags.map((flag) => (
+                      <FlagRow
+                        key={flag.name}
+                        descriptor={flag}
+                        data={data}
+                        onEdit={() => setEditing(flag.name)}
+                        onClear={() => void handleClear(flag.name)}
+                      />
+                    ))}
+                  </ul>
+                </section>
               ))}
-            </ul>
+            </div>
           )}
         </motion.div>
       </div>

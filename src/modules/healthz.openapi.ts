@@ -10,6 +10,11 @@ const FeatureFlagSnapshotSchema = z
     CHAT_HISTORY_ENABLED: z.boolean(),
     RATE_LIMIT_PER_MINUTE: z.number().int(),
     COMPLETION_ENABLED: z.boolean(),
+    TOOL_CALCULATOR_ENABLED: z.boolean(),
+    TOOL_CURRENT_TIME_ENABLED: z.boolean(),
+    TOOL_CURRENT_WEATHER_ENABLED: z.boolean(),
+    TOOL_CONVERT_CURRENCY_ENABLED: z.boolean(),
+    TOOL_SEARCH_WEB_ENABLED: z.boolean(),
   })
   .openapi('FeatureFlagSnapshot');
 

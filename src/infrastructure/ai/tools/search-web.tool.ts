@@ -128,14 +128,19 @@ export const searchWebTool: ToolDefinition<SearchWebArgs, SearchWebResult> = {
     }
   },
   detectIntent: (prompt) => {
-    const lower = prompt.toLowerCase();
-    if (!/(search|google|bul|ara|kim\s+|nedir|who is|what is)/.test(lower)) {
+    // Word-bounded keywords so "Istanbul" doesn't match "bul" and "ara"
+    // doesn't match the middle of "harama" / similar substrings. Triggers
+    // only when one of these appears as a standalone token, OR when the
+    // prompt opens with a canonical English question form.
+    const hasKeyword = /\b(search|google|find|kim|nedir|ara|bul)\b/i.test(prompt);
+    const isQuestion = /^\s*(who|what|where|when|why|how)\s+(is|are|was|were)\b/i.test(prompt);
+    if (!hasKeyword && !isQuestion) {
       return null;
     }
-    // Strip the verb prefix; everything after is the query.
     const cleaned = prompt
-      .replace(/^(search|google|find|look\s*up|ara|bul)\s+/i, '')
-      .replace(/^(who\s+is|what\s+is|kim|ne)\s+/i, '')
+      .replace(/^\s*(search|google|find|look\s*up|ara|bul)\s+/i, '')
+      .replace(/^\s*(who|what|where|when|why|how)\s+(is|are|was|were)\s+/i, '')
+      .replace(/^\s*(kim|nedir)\s+/i, '')
       .trim();
     return { query: cleaned || prompt };
   },

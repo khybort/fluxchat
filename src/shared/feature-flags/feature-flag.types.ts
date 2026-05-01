@@ -8,11 +8,22 @@ import type { UserRole } from '../types/express.js';
 export interface FeatureFlagSchema {
   STREAMING_ENABLED: boolean;
   PAGINATION_LIMIT: number;
+  /** Master switch for the entire AI tool catalog. When off, no tools are
+   *  exposed to the model regardless of the per-tool flags below. */
   AI_TOOLS_ENABLED: boolean;
   CHAT_HISTORY_ENABLED: boolean;
   RATE_LIMIT_PER_MINUTE: number;
   /** Kill-switch for the AI completion route. Default true. */
   COMPLETION_ENABLED: boolean;
+  /** Per-tool toggles. Subordinate to AI_TOOLS_ENABLED — when the master is
+   *  off, these are ignored. When on, only tools whose flag is true are
+   *  exposed to the model. Lets ops disable a buggy tool without killing
+   *  the whole feature. */
+  TOOL_CALCULATOR_ENABLED: boolean;
+  TOOL_CURRENT_TIME_ENABLED: boolean;
+  TOOL_CURRENT_WEATHER_ENABLED: boolean;
+  TOOL_CONVERT_CURRENCY_ENABLED: boolean;
+  TOOL_SEARCH_WEB_ENABLED: boolean;
 }
 
 export type FlagName = keyof FeatureFlagSchema;

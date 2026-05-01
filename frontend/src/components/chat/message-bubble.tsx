@@ -5,6 +5,8 @@ import type { Message } from '@/api/types';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { cn, formatRelativeTime } from '@/lib/utils';
 
+import { MarkdownContent } from './markdown-content';
+
 interface MessageBubbleProps {
   message: Pick<Message, 'role' | 'content' | 'createdAt'>;
   streaming?: boolean;
@@ -40,14 +42,23 @@ export const MessageBubble = ({ message, streaming }: MessageBubbleProps): React
       <div className={cn('flex max-w-[85%] flex-col gap-1', isUser && 'items-end')}>
         <div
           className={cn(
-            'whitespace-pre-wrap break-words rounded-md px-4 py-2.5 text-sm leading-relaxed',
+            'break-words rounded-md px-4 py-2.5 text-sm leading-relaxed',
             isUser
-              ? 'bg-primary text-primary-foreground'
+              ? 'whitespace-pre-wrap bg-primary text-primary-foreground'
               : 'bg-secondary text-secondary-foreground',
             streaming && 'streaming-caret',
           )}
         >
-          {message.content || (streaming ? <span className="opacity-60">…</span> : null)}
+          {/* User content stays plain text — preserves whitespace + protects
+              against accidental MD rendering of pasted code etc. Assistant
+              content runs through the markdown pipeline (GFM, code, tables). */}
+          {isUser ? (
+            message.content || null
+          ) : message.content ? (
+            <MarkdownContent content={message.content} />
+          ) : streaming ? (
+            <span className="opacity-60">…</span>
+          ) : null}
         </div>
         {message.createdAt ? (
           <span className="px-1 text-[10px] uppercase tracking-wide text-muted-foreground">

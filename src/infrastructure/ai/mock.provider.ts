@@ -83,7 +83,7 @@ export class MockAiProvider implements IAiProvider {
    */
   private async maybeRunTool(request: CompletionRequest): Promise<ToolCall[]> {
     if (!request.toolsEnabled) return [];
-    const fired = await detectToolIntent(request.prompt);
+    const fired = await detectToolIntent(request.prompt, request.enabledTools);
     if (!fired) return [];
     return [
       {

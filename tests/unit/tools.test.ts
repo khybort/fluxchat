@@ -155,6 +155,32 @@ describe('Registry', () => {
     expect((fired?.result as { value: number }).value).toBe(30);
   });
 
+  it('toAnthropicTools honours the enabled allowlist', () => {
+    const allOnly = toAnthropicTools(['calculator']);
+    expect(allOnly.map((t) => t.name)).toEqual(['calculator']);
+    const empty = toAnthropicTools([]);
+    expect(empty).toHaveLength(0);
+  });
+
+  it('toAiSdkTools honours the enabled allowlist', () => {
+    const subset = toAiSdkTools(['calculator', 'searchWeb']);
+    expect(Object.keys(subset).sort()).toEqual(['calculator', 'searchWeb']);
+  });
+
+  it('detectToolIntent skips disabled tools', async () => {
+    // Pick a prompt only the weather tool's heuristic can match (no other
+    // tool keys on "weather"). Then disable weather → dispatcher returns null.
+    const allOn = await detectToolIntent('weather in Istanbul');
+    expect(allOn?.name).toBe('getCurrentWeather');
+    const filtered = await detectToolIntent('weather in Istanbul', [
+      'calculator',
+      'getCurrentTime',
+      'convertCurrency',
+      'searchWeb',
+    ]);
+    expect(filtered).toBeNull();
+  });
+
   it('detectToolIntent returns null when no tool matches', async () => {
     const fired = await detectToolIntent('hello there');
     expect(fired).toBeNull();
