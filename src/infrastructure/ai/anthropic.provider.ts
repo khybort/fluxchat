@@ -8,7 +8,7 @@ import type {
   CompletionStreamEvent,
   ToolCall,
 } from './ai.types.js';
-import { getCurrentWeather as runWeatherTool } from './mock-tools.js';
+import { executeTool, toAnthropicTools } from './tools/registry.js';
 import type { Logger } from '../logger/logger.js';
 
 interface AnthropicProviderOptions {
@@ -27,15 +27,8 @@ interface AnthropicProviderFactoryOptions {
 
 const DEFAULT_MAX_TOKENS = 4096;
 
-const WEATHER_TOOL = {
-  name: 'getCurrentWeather',
-  description: 'Get the current weather for a given city',
-  input_schema: {
-    type: 'object' as const,
-    properties: { location: { type: 'string', description: 'City name' } },
-    required: ['location'],
-  },
-};
+// Tool list is sourced from the central registry (src/infrastructure/ai/tools).
+// Adding a tool there exposes it to every provider automatically.
 
 interface AnthropicMessage {
   role: 'user' | 'assistant';
@@ -120,7 +113,7 @@ export class AnthropicProvider implements IAiProvider {
       max_tokens: this.maxTokens,
       messages,
       ...(system ? { system } : {}),
-      ...(request.toolsEnabled ? { tools: [WEATHER_TOOL] } : {}),
+      ...(request.toolsEnabled ? { tools: toAnthropicTools() } : {}),
     });
 
     const toolCalls: ToolCall[] = [];
@@ -130,16 +123,18 @@ export class AnthropicProvider implements IAiProvider {
       const toolUseBlocks = initial.content.filter(
         (b): b is Extract<typeof b, { type: 'tool_use' }> => b.type === 'tool_use',
       );
-      const toolResults = toolUseBlocks.map((block) => {
-        const args = block.input as Record<string, unknown>;
-        const result = runWeatherTool(String(args.location ?? '')).result;
-        toolCalls.push({ name: block.name, args, result });
-        return {
-          type: 'tool_result' as const,
-          tool_use_id: block.id,
-          content: JSON.stringify(result),
-        };
-      });
+      const toolResults = await Promise.all(
+        toolUseBlocks.map(async (block) => {
+          const args = block.input as Record<string, unknown>;
+          const result = await executeTool(block.name, args);
+          toolCalls.push({ name: block.name, args, result });
+          return {
+            type: 'tool_result' as const,
+            tool_use_id: block.id,
+            content: JSON.stringify(result),
+          };
+        }),
+      );
 
       const followUp = await this.client.messages.create({
         model: this.model,
@@ -178,7 +173,7 @@ export class AnthropicProvider implements IAiProvider {
       max_tokens: this.maxTokens,
       messages,
       ...(system ? { system } : {}),
-      ...(request.toolsEnabled ? { tools: [WEATHER_TOOL] } : {}),
+      ...(request.toolsEnabled ? { tools: toAnthropicTools() } : {}),
     });
 
     const blocks = new Map<number, StreamingBlock>();
@@ -222,7 +217,7 @@ export class AnthropicProvider implements IAiProvider {
           const block = blocks.get(event.index);
           if (block?.kind === 'tool_use' && request.toolsEnabled) {
             const args = safeParseJson(block.inputJson);
-            const result = runWeatherTool(String(args.location ?? '')).result;
+            const result = await executeTool(block.name, args);
             executedTools.push({ block, args, result });
             yield {
               type: 'tool_execution',

@@ -1,6 +1,5 @@
 import { createOpenAI } from '@ai-sdk/openai';
-import { generateText, streamText, tool } from 'ai';
-import { z } from 'zod';
+import { generateText, streamText } from 'ai';
 
 import type { IAiProvider } from './ai.provider.js';
 import type {
@@ -9,7 +8,7 @@ import type {
   CompletionStreamEvent,
   ToolCall,
 } from './ai.types.js';
-import { getCurrentWeather as runWeatherTool } from './mock-tools.js';
+import { toAiSdkTools } from './tools/registry.js';
 import type { Logger } from '../logger/logger.js';
 
 interface OpenAiProviderOptions {
@@ -43,11 +42,17 @@ export class OpenAiProvider implements IAiProvider {
       ...(request.toolsEnabled ? { tools: this.buildTools() } : {}),
     });
 
-    const toolCalls: ToolCall[] = (result.toolCalls ?? []).map((call, index) => ({
-      name: call.toolName,
-      args: call.args as Record<string, unknown>,
-      result: result.toolResults?.[index]?.result ?? null,
-    }));
+    const toolCalls: ToolCall[] = (result.toolCalls ?? []).map((call, index) => {
+      // ToolResultUnion narrows when the SDK has a typed ToolSet; with our
+      // loose ToolSet (tools come from the registry, not inline) the SDK
+      // hides `result` behind a generic param. Cast to read it pragmatically.
+      const toolResults = (result.toolResults ?? []) as Array<{ result?: unknown }>;
+      return {
+        name: call.toolName,
+        args: call.args as Record<string, unknown>,
+        result: toolResults[index]?.result ?? null,
+      };
+    });
 
     return {
       text: result.text,
@@ -76,22 +81,33 @@ export class OpenAiProvider implements IAiProvider {
     try {
       for await (const part of result.fullStream) {
         if (signal.aborted) break;
-        if (part.type === 'text-delta') {
-          fullText += part.textDelta;
-          yield { type: 'delta', text: part.textDelta };
-        } else if (part.type === 'tool-call') {
-          this.logger.pino.debug({ tool: part.toolName }, 'openai_tool_call');
-        } else if (part.type === 'tool-result') {
+        // The AI SDK's TextStreamPart union narrows differently per ToolSet;
+        // tool-result events are present at runtime but lost from the static
+        // union when the ToolSet is inferred loose. Cast and check by string.
+        const evt = part as {
+          type: string;
+          textDelta?: string;
+          toolName?: string;
+          args?: unknown;
+          result?: unknown;
+          error?: unknown;
+        };
+        if (evt.type === 'text-delta' && typeof evt.textDelta === 'string') {
+          fullText += evt.textDelta;
+          yield { type: 'delta', text: evt.textDelta };
+        } else if (evt.type === 'tool-call') {
+          this.logger.pino.debug({ tool: evt.toolName }, 'openai_tool_call');
+        } else if (evt.type === 'tool-result') {
           yield {
             type: 'tool_execution',
             tool: {
-              name: part.toolName,
-              args: part.args as Record<string, unknown>,
-              result: part.result,
+              name: String(evt.toolName ?? ''),
+              args: (evt.args ?? {}) as Record<string, unknown>,
+              result: evt.result,
             },
           };
-        } else if (part.type === 'error') {
-          throw part.error instanceof Error ? part.error : new Error(String(part.error));
+        } else if (evt.type === 'error') {
+          throw evt.error instanceof Error ? evt.error : new Error(String(evt.error));
         }
       }
     } catch (error) {
@@ -122,14 +138,8 @@ export class OpenAiProvider implements IAiProvider {
   }
 
   private buildTools() {
-    return {
-      getCurrentWeather: tool({
-        description: 'Get the current weather for a given city',
-        parameters: z.object({ location: z.string().describe('City name') }),
-        execute: async ({ location }: { location: string }) => {
-          return runWeatherTool(location).result;
-        },
-      }),
-    };
+    // Sourced from src/infrastructure/ai/tools/registry.ts — adding a tool there
+    // exposes it to every provider with no per-provider edit.
+    return toAiSdkTools();
   }
 }

@@ -50,7 +50,8 @@
     "pino-http": "^10.3.0",
     "swagger-ui-express": "^5.0.1",
     "uuid": "^11.0.3",
-    "zod": "^3.23.8"
+    "zod": "^3.23.8",
+    "zod-to-json-schema": "^3.25.2"
   },
   "devDependencies": {
     "@testcontainers/postgresql": "^11.14.0",

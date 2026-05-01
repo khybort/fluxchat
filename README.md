@@ -310,6 +310,20 @@ Three providers are wired through a common `IAiProvider` interface (CLAUDE.md §
 
 `FallbackAiProvider` wraps two providers — primary first, secondary on failure. Streaming fallback only fires *before* the first token; once bytes are on the wire, errors propagate.
 
+### AI tools (gated by `AI_TOOLS_ENABLED`)
+
+Five tools ship behind a single registry ([`src/infrastructure/ai/tools/`](./src/infrastructure/ai/tools/)) — every provider (Anthropic, Groq, OpenAI, Mock) reads the same list. Adding a new tool is a single file in that folder plus one line in [`registry.ts`](./src/infrastructure/ai/tools/registry.ts).
+
+| Tool | Description | Sample prompt |
+|---|---|---|
+| `calculator` | Safe arithmetic evaluator (digits + - × ÷ and parentheses; no identifiers, no eval injection) | "what is (12 * 7) - 3 / 2?" |
+| `getCurrentTime` | IANA-timezone-aware current time + weekday | "what time is it in Tokyo?" |
+| `getCurrentWeather` | Deterministic mock weather with temperature, condition, humidity, wind | "weather in Istanbul" |
+| `convertCurrency` | Fixed-rate FX over USD/EUR/TRY/GBP/JPY/CHF/CAD (snapshot 2026-Q2) | "how much is 100 USD in TRY?" |
+| `searchWeb` | **Real** web search via DuckDuckGo Instant Answer API — no key, no setup. Falls back to empty on timeout / 5xx | "who is Ada Lovelace?" |
+
+All tools implement the same shape — name, description, zod-typed parameters, an `execute(args)` impl, and an optional `detectIntent(prompt)` heuristic so the deterministic `MockAiProvider` exercises them in tests. Schema validation runs at `executeTool()` before the implementation, and any thrown error returns a structured `{ error }` envelope so the LLM can recover instead of the stream blowing up.
+
 ## Rate limiting
 
 Per-route, per-user (fallback to IP). The backend is pluggable via `IRateLimitStore`:

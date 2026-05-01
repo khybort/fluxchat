@@ -7,7 +7,7 @@ import type {
   CompletionStreamEvent,
   ToolCall,
 } from './ai.types.js';
-import { detectWeatherIntent, getCurrentWeather } from './mock-tools.js';
+import { detectToolIntent } from './tools/registry.js';
 
 /**
  * Deterministic AI provider used when OPENAI_API_KEY is not set, and as the
@@ -21,7 +21,7 @@ export class MockAiProvider implements IAiProvider {
     'Mock response: I received your prompt and would normally call the model here.';
 
   public async complete(request: CompletionRequest): Promise<CompletionResultJson> {
-    const toolCalls = this.maybeRunTool(request);
+    const toolCalls = await this.maybeRunTool(request);
     const text = this.buildText(request, toolCalls);
     return {
       text,
@@ -39,7 +39,7 @@ export class MockAiProvider implements IAiProvider {
   ): AsyncIterable<CompletionStreamEvent> {
     yield { type: 'thinking' };
 
-    const toolCalls = this.maybeRunTool(request);
+    const toolCalls = await this.maybeRunTool(request);
     for (const tool of toolCalls) {
       if (signal.aborted) return;
       yield { type: 'tool_execution', tool };
@@ -76,20 +76,30 @@ export class MockAiProvider implements IAiProvider {
     };
   }
 
-  private maybeRunTool(request: CompletionRequest): ToolCall[] {
+  /**
+   * Walk every registered tool's `detectIntent` and fire the first match.
+   * Returns at most one tool per turn — chains aren't simulated, the real
+   * providers handle multi-step tool use.
+   */
+  private async maybeRunTool(request: CompletionRequest): Promise<ToolCall[]> {
     if (!request.toolsEnabled) return [];
-    const location = detectWeatherIntent(request.prompt);
-    if (!location) return [];
-    return [getCurrentWeather(location)];
+    const fired = await detectToolIntent(request.prompt);
+    if (!fired) return [];
+    return [
+      {
+        name: fired.name,
+        args: (fired.args ?? {}) as Record<string, unknown>,
+        result: fired.result,
+      },
+    ];
   }
 
   private buildText(request: CompletionRequest, toolCalls: ToolCall[]): string {
     if (toolCalls.length > 0) {
-      const parts = toolCalls.map((t) => {
-        const result = t.result as { tempC: number; condition: string };
-        return `the weather is ${result.condition} at ${result.tempC}°C`;
-      });
-      return `According to my tools, ${parts.join('; ')}.`;
+      const summaries = toolCalls.map(
+        (t) => `tool ${t.name} returned: ${JSON.stringify(t.result)}`,
+      );
+      return `Based on my tools, ${summaries.join(' · ')}.`;
     }
     return `${MockAiProvider.REPLY_TEMPLATE} You said: "${request.prompt.slice(0, 80)}".`;
   }
