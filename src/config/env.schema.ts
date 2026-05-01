@@ -48,7 +48,11 @@ export const EnvSchema = z.object({
   // Optional Redis (used for rate limiting when set). When omitted, an in-memory
   // store is used — fine for single-instance deployments but inadequate for
   // horizontally-scaled production.
-  REDIS_URL: z.string().url().optional(),
+  REDIS_URL: z
+    .string()
+    .transform((v) => (v === '' ? undefined : v))
+    .pipe(z.string().url().optional())
+    .optional(),
 
   FEATURE_FLAGS_FILE: z.string().optional(),
 });

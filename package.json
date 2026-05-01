@@ -29,6 +29,7 @@
     "prisma:migrate": "prisma migrate dev",
     "prisma:deploy": "prisma migrate deploy",
     "prisma:studio": "prisma studio",
+    "prisma:seed": "prisma db seed",
     "prisma:check": "DATABASE_URL=postgresql://check:check@localhost:5432/check prisma validate && prisma format --check --schema ./prisma/schema.prisma",
     "hooks:install": "husky",
     "prepare": "husky || true"
@@ -100,5 +101,8 @@
     "*.{md,json,yml,yaml}": [
       "prettier --write"
     ]
+  },
+  "prisma": {
+    "seed": "tsx prisma/seed.ts"
   }
 }

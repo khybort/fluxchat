@@ -6,9 +6,9 @@
 generator client {
   provider      = "prisma-client-js"
   // Vercel's serverless Lambda runtime is Amazon Linux (rhel-openssl-3.0.x);
-  // local + GitHub Actions Ubuntu runner uses debian-openssl-3.0.x.
-  // Listing both keeps the bundle portable across environments.
-  binaryTargets = ["native", "rhel-openssl-3.0.x", "debian-openssl-3.0.x"]
+  // local + GitHub Actions Ubuntu runner uses debian-openssl-3.0.x;
+  // the `dev` Docker profile runs node:20-alpine (musl) on x64 or arm64.
+  binaryTargets = ["native", "rhel-openssl-3.0.x", "debian-openssl-3.0.x", "linux-musl-openssl-3.0.x", "linux-musl-arm64-openssl-3.0.x"]
 }
 
 datasource db {

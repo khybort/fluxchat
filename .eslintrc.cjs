@@ -71,6 +71,13 @@ module.exports = {
       },
     },
     {
+      files: ['prisma/seed.ts'],
+      rules: {
+        'no-console': 'off',
+        'no-restricted-syntax': 'off',
+      },
+    },
+    {
       files: ['tests/**/*.ts', '**/*.test.ts', '**/*.spec.ts'],
       rules: {
         '@typescript-eslint/no-explicit-any': 'off',

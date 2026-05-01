@@ -42,46 +42,62 @@ Run them together with the steps below — or skip straight to [`DEPLOYMENT.md`]
 
 ### Run it
 
+Two supported paths. **Docker is the recommended one** — it gives you a clean, reproducible stack (db + api + web) with one command and zero host-side toolchain beyond Docker itself.
+
+| | Recommended: Docker | Alternative: Local |
+|---|---|---|
+| Need on host | Docker, `make` | Docker (db only), Node 20.11+, pnpm 9+ |
+| Hot reload | Yes (bind-mounted src) | Yes (native `tsx`/`vite`) |
+| When to pick | Default. New machine, CI parity, "just run it". | You're iterating fast and prefer native tooling, or HMR feels sluggish under Docker. |
+
+#### A. Docker (recommended)
+
 ```bash
-make install                         # backend + frontend deps + husky hooks
 cp .env.example .env                 # set JWT_SECRET, APP_CHECK_TOKEN, AI keys
 cp frontend/.env.example frontend/.env
 
-make db-up                           # local Postgres
-make migrate ARGS="--name init"      # apply Prisma migrations
+make docker-dev                      # db + api (tsx watch) + web (vite), all in containers
+# in a second terminal, once db is healthy:
+make migrate ARGS="--name init"      # apply Prisma migrations against the dev db
+```
 
+Backend on `:3000`, frontend on `:5173`, Postgres on `:5432` (forwarded so `make migrate` from the host hits the same db). Stop with `make docker-dev-down`.
+
+On macOS/Windows, if HMR misses file events, set `CHOKIDAR_USEPOLLING=true` in `.env`.
+
+#### B. Local (no containers for app code)
+
+```bash
+make install                         # backend + frontend deps + husky hooks
+cp .env.example .env
+cp frontend/.env.example frontend/.env
+
+make db-up                           # local Postgres in a container
+make migrate ARGS="--name init"      # apply Prisma migrations
 make dev                             # backend + frontend, hot reload, on :3000 + :5173
 ```
 
-That's it. Both Node services hot-reload on file changes:
+Both Node services hot-reload on file changes:
 - **Backend** — `tsx watch src/server.ts` (recompiles + restarts in <1s)
 - **Frontend** — `vite --host` (HMR, no full reload)
+
+#### Make targets
 
 For the full menu run `make help`. Common targets:
 
 | Target | What it does |
 |---|---|
-| `make dev` | Backend + frontend together with hot reload (`concurrently -n api,web`). |
+| `make docker-dev` | Run dev profile in Docker (db + api + web, hot reload). **Recommended.** |
+| `make docker-dev-down` | Stop the dev profile. |
+| `make dev` | Run backend + frontend on the host (`concurrently -n api,web`). |
 | `make build` | Build both (`tsc` + `vite build`). |
 | `make verify` | typecheck + lint + tests + `prisma:check` — same gate as `pre-push`. |
 | `make migrate ARGS="--name x"` | Create + apply a dev migration. |
 | `make migrate-check` | DB-less schema validation (`prisma validate` + `format --check`). |
 | `make migrate-shadow-check` | Real drift check via a throwaway Postgres container. |
-| `make docker-dev` | Run dev profile in Docker (api + web hot reload + db). |
 | `make docker-prod` | Run prod profile in Docker (compiled image, runs migrations on startup). |
+| `make docker-test` | Bring up the dedicated test database on `:5433`. |
 | `make hooks-install` | Re-attach husky hooks if cloning skipped them. |
-
-### Docker profiles
-
-`docker-compose.yml` ships three named profiles:
-
-```bash
-make docker-dev      # db + api-dev (tsx watch) + web-dev (vite --host)
-make docker-prod     # db + api (built image, migrate deploy on entrypoint)
-make docker-test     # db-test on :5433
-```
-
-Hot reload inside containers works via bind-mounted source + named volumes for `node_modules`. On macOS/Windows set `CHOKIDAR_USEPOLLING=true` if HMR misses events.
 
 ### Git hooks
 

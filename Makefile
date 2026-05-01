@@ -15,9 +15,9 @@ RST  := \033[0m
         dev dev-api dev-web build build-api build-web start \
         lint lint-api lint-web typecheck typecheck-api typecheck-web \
         test test-watch verify \
-        migrate migrate-deploy migrate-check migrate-shadow-check migrate-status prisma-studio prisma-generate \
+        migrate migrate-deploy migrate-check migrate-shadow-check migrate-status prisma-studio prisma-generate prisma-seed \
         db-up db-down db-logs db-reset \
-        docker-dev docker-dev-down docker-prod docker-prod-down docker-test docker-prune \
+        docker-dev docker-dev-logs docker-dev-down docker-prod docker-prod-down docker-test docker-prune \
         deploy-setup deploy-trigger deploy-watch \
         format clean
 
@@ -137,6 +137,9 @@ migrate-shadow-check:  ## Real drift check using a throwaway shadow Postgres con
 prisma-studio:  ## Launch Prisma Studio against the configured DATABASE_URL
 	pnpm prisma:studio
 
+prisma-seed:  ## Seed the configured DATABASE_URL with the demo admin + user accounts
+	pnpm prisma:seed
+
 ## ─── local database ────────────────────────────────────────────────────────
 
 db-up:  ## Start the local Postgres in Docker (detached)
@@ -155,8 +158,11 @@ db-reset:  ## DESTRUCTIVE: drop the local Postgres volume and recreate it
 
 ## ─── docker compose profiles ────────────────────────────────────────────────
 
-docker-dev:  ## Bring up dev profile (db + api hot reload + web hot reload)
-	docker compose --profile dev up --build
+docker-dev:  ## Bring up dev profile detached (db + api hot reload + web hot reload). Use `make docker-dev-logs` to tail.
+	docker compose --profile dev up -d --build
+
+docker-dev-logs:  ## Tail logs for the dev profile
+	docker compose --profile dev logs -f
 
 docker-dev-down:  ## Stop dev profile services
 	docker compose --profile dev down
