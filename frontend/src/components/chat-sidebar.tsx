@@ -4,16 +4,24 @@ import {
   ChatCircleIcon,
   ChatTeardropDotsIcon,
   CircleNotchIcon,
+  DotsThreeIcon,
   MagnifyingGlassIcon,
+  TrashIcon,
 } from '@phosphor-icons/react';
 import { useEffect, useMemo, useState } from 'react';
 import { NavLink, useNavigate, useParams } from 'react-router-dom';
 import { toast } from 'sonner';
 
-import { listChats } from '@/api/chat';
+import { deleteChat, listChats } from '@/api/chat';
 import { ApiError } from '@/api/client';
 import type { Chat } from '@/api/types';
 import { Button } from '@/components/ui/button';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -28,9 +36,10 @@ interface ChatSidebarProps {
 export const ChatSidebar = ({ onNavigate }: ChatSidebarProps): React.JSX.Element => {
   const token = useAuthStore((s) => s.token);
   const navigate = useNavigate();
-  const { chatId } = useParams<{ chatId: string }>();
+  const { chatId: activeChatId } = useParams<{ chatId: string }>();
   const refreshNonce = useChatStore((s) => s.refreshNonce);
   const consumePending = useChatStore((s) => s.consumePending);
+  const notifyChatDeleted = useChatStore((s) => s.notifyChatDeleted);
   const [chats, setChats] = useState<Chat[]>([]);
   const [cursor, setCursor] = useState<string | null>(null);
   const [hasMore, setHasMore] = useState(false);
@@ -38,6 +47,7 @@ export const ChatSidebar = ({ onNavigate }: ChatSidebarProps): React.JSX.Element
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [query, setQuery] = useState('');
+  const [pendingDelete, setPendingDelete] = useState<string | null>(null);
 
   useEffect(() => {
     if (!token) return;
@@ -101,6 +111,31 @@ export const ChatSidebar = ({ onNavigate }: ChatSidebarProps): React.JSX.Element
     onNavigate?.();
   };
 
+  const handleDelete = async (chat: Chat): Promise<void> => {
+    if (!token) return;
+    if (!window.confirm(`Delete "${chat.title}"? This cannot be undone.`)) return;
+    setPendingDelete(chat.id);
+    // Optimistic — remove from local list first; reconcile via refresh below.
+    setChats((prev) => prev.filter((c) => c.id !== chat.id));
+    try {
+      await deleteChat(token, chat.id);
+      toast.success('Chat deleted');
+      notifyChatDeleted();
+      // If the user is currently inside the chat we just deleted, bounce
+      // them to the new-chat landing page so they don't stare at a 404.
+      if (activeChatId === chat.id) {
+        navigate('/chat', { replace: true });
+      }
+    } catch (err) {
+      const message = err instanceof ApiError ? err.message : 'Failed to delete chat';
+      toast.error(message);
+      // Rollback optimistic removal on failure.
+      setChats((prev) => (prev.some((c) => c.id === chat.id) ? prev : [chat, ...prev]));
+    } finally {
+      setPendingDelete(null);
+    }
+  };
+
   return (
     <div className="flex flex-1 flex-col overflow-hidden">
       <div className="space-y-2 px-3 py-3">
@@ -147,15 +182,16 @@ export const ChatSidebar = ({ onNavigate }: ChatSidebarProps): React.JSX.Element
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, y: -6 }}
                     transition={{ delay: index * 0.02, duration: 0.2 }}
+                    className="group relative"
                   >
                     <NavLink
                       to={`/chat/${chat.id}`}
                       onClick={onNavigate}
                       className={({ isActive }) =>
                         cn(
-                          'group flex items-start gap-2.5 rounded-md px-2.5 py-2 text-left text-sm transition-colors',
+                          'flex items-start gap-2.5 rounded-md px-2.5 py-2 pr-9 text-left text-sm transition-colors',
                           'hover:bg-accent',
-                          (isActive || chat.id === chatId) &&
+                          (isActive || chat.id === activeChatId) &&
                             'bg-accent font-medium text-accent-foreground',
                         )
                       }
@@ -172,6 +208,41 @@ export const ChatSidebar = ({ onNavigate }: ChatSidebarProps): React.JSX.Element
                         </span>
                       </span>
                     </NavLink>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <button
+                          type="button"
+                          aria-label="Chat actions"
+                          onClick={(e) => {
+                            // Stop the click from reaching the NavLink underneath.
+                            e.preventDefault();
+                            e.stopPropagation();
+                          }}
+                          className={cn(
+                            'absolute right-1.5 top-1/2 inline-flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-md',
+                            'text-muted-foreground transition-colors hover:bg-accent-foreground/10 hover:text-foreground',
+                            'opacity-0 focus-visible:opacity-100 group-hover:opacity-100',
+                            'data-[state=open]:opacity-100',
+                          )}
+                          disabled={pendingDelete === chat.id}
+                        >
+                          {pendingDelete === chat.id ? (
+                            <CircleNotchIcon className="h-3.5 w-3.5 animate-spin" weight="bold" />
+                          ) : (
+                            <DotsThreeIcon className="h-4 w-4" weight="bold" />
+                          )}
+                        </button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end" className="w-40">
+                        <DropdownMenuItem
+                          onSelect={() => void handleDelete(chat)}
+                          className="text-destructive focus:bg-destructive/10 focus:text-destructive"
+                        >
+                          <TrashIcon className="h-3.5 w-3.5" weight="bold" />
+                          Delete
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                   </motion.li>
                 ))}
               </AnimatePresence>

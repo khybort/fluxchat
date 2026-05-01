@@ -1,12 +1,33 @@
+import { CopyIcon } from '@phosphor-icons/react';
 import ReactMarkdown, { type Components } from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 
+import { copyToClipboard } from '@/lib/clipboard';
 import { cn } from '@/lib/utils';
 
 interface MarkdownContentProps {
   content: string;
   className?: string;
 }
+
+/**
+ * Walk a HAST node and concatenate all descendant text values. We use this to
+ * extract the plain code text out of a `<pre><code>...</code></pre>` subtree
+ * for the per-block copy button. ReactMarkdown gives us the `node` (HAST
+ * Element) on every Components override; this stays decoupled from React
+ * children so we don't have to recurse through React elements.
+ */
+interface HastNode {
+  type: string;
+  value?: string;
+  children?: HastNode[];
+}
+
+const hastToText = (node: HastNode | undefined): string => {
+  if (!node) return '';
+  if (node.type === 'text') return node.value ?? '';
+  return (node.children ?? []).map(hastToText).join('');
+};
 
 /**
  * Component overrides — keep the assistant bubble feeling chat-native rather
@@ -26,14 +47,37 @@ const components: Components = {
       {children}
     </a>
   ),
-  pre: ({ children, ...props }) => (
-    <pre
-      {...props}
-      className="scrollbar-thin overflow-x-auto rounded-md bg-background/60 p-3 text-xs"
-    >
-      {children}
-    </pre>
-  ),
+  pre: ({ children, node, ...props }) => {
+    // Pull the raw code text out of the HAST tree once, ignore the trailing
+    // newline ReactMarkdown leaves behind. Empty fences fall through with no
+    // copy button.
+    const text = hastToText(node as unknown as HastNode).replace(/\n$/, '');
+    return (
+      <div className="group relative my-2">
+        <pre
+          {...props}
+          className="scrollbar-thin overflow-x-auto rounded-md bg-background/60 p-3 text-xs"
+        >
+          {children}
+        </pre>
+        {text ? (
+          <button
+            type="button"
+            onClick={() => void copyToClipboard(text, 'Code copied')}
+            aria-label="Copy code"
+            className={cn(
+              'absolute right-2 top-2 inline-flex h-6 w-6 items-center justify-center rounded-md',
+              'bg-background/80 text-muted-foreground backdrop-blur-sm',
+              'opacity-0 transition-opacity hover:bg-background hover:text-foreground',
+              'focus-visible:opacity-100 group-hover:opacity-100',
+            )}
+          >
+            <CopyIcon className="h-3 w-3" weight="bold" />
+          </button>
+        ) : null}
+      </div>
+    );
+  },
   code: ({ className, children, ...props }) => {
     // Differentiate inline `code` from block ```code```. ReactMarkdown wraps
     // block code in a <pre><code> pair — when the parent is pre, we render

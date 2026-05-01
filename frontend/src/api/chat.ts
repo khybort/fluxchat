@@ -46,3 +46,9 @@ export const completion = (
 
 export const getHealthz = (): Promise<HealthzResponse> =>
   apiFetch<HealthzResponse>('/healthz', { method: 'GET' });
+
+export const deleteChat = (token: string, chatId: string): Promise<void> =>
+  apiFetch<void>(`/api/chats/${encodeURIComponent(chatId)}`, {
+    method: 'DELETE',
+    token,
+  });

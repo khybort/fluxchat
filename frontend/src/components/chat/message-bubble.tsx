@@ -1,8 +1,9 @@
 import { motion } from 'framer-motion';
-import { RobotIcon, UserIcon } from '@phosphor-icons/react';
+import { CopyIcon, RobotIcon, UserIcon } from '@phosphor-icons/react';
 
 import type { Message } from '@/api/types';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { copyToClipboard } from '@/lib/clipboard';
 import { cn, formatRelativeTime } from '@/lib/utils';
 
 import { MarkdownContent } from './markdown-content';
@@ -42,7 +43,7 @@ export const MessageBubble = ({ message, streaming }: MessageBubbleProps): React
       <div className={cn('flex max-w-[85%] flex-col gap-1', isUser && 'items-end')}>
         <div
           className={cn(
-            'break-words rounded-md px-4 py-2.5 text-sm leading-relaxed',
+            'group relative break-words rounded-md px-4 py-2.5 text-sm leading-relaxed',
             isUser
               ? 'whitespace-pre-wrap bg-primary text-primary-foreground'
               : 'bg-secondary text-secondary-foreground',
@@ -58,6 +59,21 @@ export const MessageBubble = ({ message, streaming }: MessageBubbleProps): React
             <MarkdownContent content={message.content} />
           ) : streaming ? (
             <span className="opacity-60">…</span>
+          ) : null}
+          {isUser && message.content ? (
+            <button
+              type="button"
+              onClick={() => void copyToClipboard(message.content, 'Message copied')}
+              aria-label="Copy message"
+              className={cn(
+                'absolute right-1.5 top-1.5 inline-flex h-6 w-6 items-center justify-center rounded-md',
+                'bg-primary-foreground/15 text-primary-foreground/80 backdrop-blur-sm',
+                'opacity-0 transition-opacity hover:bg-primary-foreground/25 hover:text-primary-foreground',
+                'focus-visible:opacity-100 group-hover:opacity-100',
+              )}
+            >
+              <CopyIcon className="h-3 w-3" weight="bold" />
+            </button>
           ) : null}
         </div>
         {message.createdAt ? (
