@@ -1,4 +1,3 @@
-import { SlidersHorizontalIcon } from '@phosphor-icons/react';
 import { useCallback, useEffect, useState } from 'react';
 import { toast } from 'sonner';
 
@@ -12,6 +11,7 @@ import { cn, initialsOf } from '@/lib/utils';
 import { useAuthStore } from '@/store/auth-store';
 
 import { UserFlagOverridesDialog } from './user-flag-overrides-dialog';
+import { MaterialIcon } from '@/components/ui/material-icon';
 
 const PAGE_SIZE = 20;
 
@@ -107,7 +107,7 @@ const UserRow = ({ user, onEdit }: { user: AdminUser; onEdit: () => void }): Rea
       <p className="truncate text-xs text-muted-foreground">{user.email}</p>
     </div>
     <Button size="sm" variant="outline" onClick={onEdit}>
-      <SlidersHorizontalIcon className="h-3.5 w-3.5" weight="bold" />
+      <MaterialIcon name="tune" className="h-3.5 w-3.5" />
       Override flags
     </Button>
   </li>

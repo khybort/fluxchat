@@ -1,9 +1,9 @@
 import { AnimatePresence, motion } from 'framer-motion';
-import { CaretDownIcon, WrenchIcon } from '@phosphor-icons/react';
 import { useState } from 'react';
 
 import type { ToolCall } from '@/api/types';
 import { cn } from '@/lib/utils';
+import { MaterialIcon } from '@/components/ui/material-icon';
 
 interface ToolExecutionCardProps {
   tool: ToolCall;
@@ -26,7 +26,7 @@ export const ToolExecutionCard = ({ tool }: ToolExecutionCardProps): React.JSX.E
         className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs transition-colors hover:bg-accent"
       >
         <span className="flex h-6 w-6 items-center justify-center rounded-md bg-warning/15 text-warning">
-          <WrenchIcon className="h-3 w-3" weight="bold" />
+          <MaterialIcon name="build" className="h-3 w-3" />
         </span>
         <span className="flex-1 truncate font-medium text-foreground">
           Tool used: <span className="font-mono">{tool.name}</span>
@@ -36,7 +36,7 @@ export const ToolExecutionCard = ({ tool }: ToolExecutionCardProps): React.JSX.E
           transition={{ duration: 0.2 }}
           className="text-muted-foreground"
         >
-          <CaretDownIcon className="h-3.5 w-3.5" weight="bold" />
+          <MaterialIcon name="expand_more" className="h-3.5 w-3.5" />
         </motion.span>
       </button>
 

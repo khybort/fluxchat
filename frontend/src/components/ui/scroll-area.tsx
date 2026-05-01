@@ -16,7 +16,13 @@ export const ScrollArea = React.forwardRef<
     className={cn('relative overflow-hidden', className)}
     {...props}
   >
-    <ScrollAreaPrimitive.Viewport ref={viewportRef} className="h-full w-full rounded-[inherit]">
+    <ScrollAreaPrimitive.Viewport
+      ref={viewportRef}
+      // Radix wraps content in a `display: table; min-width: 100%` div, which
+      // lets flex children widen past the viewport (silently breaks `truncate`).
+      // Force block layout so `min-w-0 + truncate` works downstream.
+      className="h-full w-full rounded-[inherit] [&>div]:!block [&>div]:!min-w-0"
+    >
       {children}
     </ScrollAreaPrimitive.Viewport>
     <ScrollBar />

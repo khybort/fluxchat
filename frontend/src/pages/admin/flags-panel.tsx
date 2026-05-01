@@ -1,4 +1,3 @@
-import { ArrowsClockwiseIcon, PencilSimpleIcon, TrashIcon } from '@phosphor-icons/react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 
@@ -8,6 +7,7 @@ import type { AdminFlagsResponse, FlagDefinition, FlagName } from '@/api/types';
 import { FlagListSkeleton } from '@/components/admin/flag-list-skeleton';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { cn } from '@/lib/utils';
 import { useAuthStore } from '@/store/auth-store';
 import { useFlagsStore } from '@/store/flags-store';
@@ -15,6 +15,7 @@ import { useFlagsStore } from '@/store/flags-store';
 import { FlagEditor } from './flag-editor';
 import type { FlagDescriptor } from './flag-meta';
 import { AI_TOOLS_MASTER, FLAG_GROUPS, MASTER_OFF_BADGE, TOOL_FLAGS } from './flag-meta';
+import { MaterialIcon } from '@/components/ui/material-icon';
 
 export const FlagsPanel = (): React.JSX.Element => {
   const token = useAuthStore((s) => s.token) ?? '';
@@ -26,6 +27,7 @@ export const FlagsPanel = (): React.JSX.Element => {
   const [loading, setLoading] = useState(true);
   const [reloading, setReloading] = useState(false);
   const [editing, setEditing] = useState<FlagName | null>(null);
+  const [confirmClear, setConfirmClear] = useState<FlagName | null>(null);
 
   const applyResponse = useCallback(
     (response: AdminFlagsResponse) => {
@@ -70,7 +72,6 @@ export const FlagsPanel = (): React.JSX.Element => {
   };
 
   const handleClear = async (name: FlagName): Promise<void> => {
-    if (!window.confirm(`Clear override for ${name}? Falls back to file/env default.`)) return;
     try {
       const response = await clearAdminFlag(token, name);
       applyResponse(response);
@@ -104,10 +105,7 @@ export const FlagsPanel = (): React.JSX.Element => {
           onClick={() => void handleReload()}
           disabled={reloading}
         >
-          <ArrowsClockwiseIcon
-            className={reloading ? 'h-4 w-4 animate-spin' : 'h-4 w-4'}
-            weight="bold"
-          />
+          <MaterialIcon name="refresh" className={reloading ? 'h-4 w-4 animate-spin' : 'h-4 w-4'} />
           Reload
         </Button>
       </div>
@@ -144,7 +142,7 @@ export const FlagsPanel = (): React.JSX.Element => {
                       data={data}
                       disabled={masterOff && TOOL_FLAGS.has(flag.name)}
                       onEdit={() => setEditing(flag.name)}
-                      onClear={() => void handleClear(flag.name)}
+                      onClear={() => setConfirmClear(flag.name)}
                     />
                   ))}
                 </ul>
@@ -162,6 +160,19 @@ export const FlagsPanel = (): React.JSX.Element => {
           onSave={(definition) => handleSave(editing, definition)}
         />
       ) : null}
+
+      <ConfirmDialog
+        open={confirmClear !== null}
+        onOpenChange={(open) => !open && setConfirmClear(null)}
+        title={`Clear override for ${confirmClear ?? ''}?`}
+        description="The flag falls back to its env or JSON file default. Per-user rules and percentage rollout (if any) are also dropped."
+        confirmLabel="Clear"
+        tone="destructive"
+        icon="delete"
+        onConfirm={async () => {
+          if (confirmClear) await handleClear(confirmClear);
+        }}
+      />
     </>
   );
 };
@@ -232,18 +243,18 @@ const FlagRow = ({
         </div>
         <div className="flex flex-none items-center gap-1.5">
           <Button size="sm" variant="outline" onClick={onEdit} disabled={disabled}>
-            <PencilSimpleIcon className="h-3.5 w-3.5" weight="bold" />
+            <MaterialIcon name="edit" className="h-3.5 w-3.5" />
             Edit
           </Button>
-          {customised ? (
+          {customised && !TOOL_FLAGS.has(descriptor.name) ? (
             <Button
               size="sm"
               variant="ghost"
               onClick={onClear}
-              className="text-destructive hover:bg-destructive/10"
+              className="text-error hover:bg-error/10"
               aria-label="Clear override"
             >
-              <TrashIcon className="h-3.5 w-3.5" weight="bold" />
+              <MaterialIcon name="delete" className="text-base" />
             </Button>
           ) : null}
         </div>

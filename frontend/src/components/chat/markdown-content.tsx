@@ -1,9 +1,9 @@
-import { CopyIcon } from '@phosphor-icons/react';
 import ReactMarkdown, { type Components } from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 
 import { copyToClipboard } from '@/lib/clipboard';
 import { cn } from '@/lib/utils';
+import { MaterialIcon } from '@/components/ui/material-icon';
 
 interface MarkdownContentProps {
   content: string;
@@ -72,7 +72,7 @@ const components: Components = {
               'focus-visible:opacity-100 group-hover:opacity-100',
             )}
           >
-            <CopyIcon className="h-3 w-3" weight="bold" />
+            <MaterialIcon name="content_copy" className="h-3 w-3" />
           </button>
         ) : null}
       </div>

@@ -1,10 +1,3 @@
-import {
-  CheckCircleIcon,
-  PlusIcon,
-  TrashIcon,
-  UserCircleIcon,
-  XCircleIcon,
-} from '@phosphor-icons/react';
 import { useState } from 'react';
 import { toast } from 'sonner';
 
@@ -30,6 +23,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { cn } from '@/lib/utils';
 import { useAuthStore } from '@/store/auth-store';
+import { MaterialIcon } from '@/components/ui/material-icon';
 
 interface FlagEditorProps {
   name: FlagName;
@@ -163,7 +157,7 @@ export const FlagEditor = ({
             subtitle="Walked top-to-bottom. First match wins."
             right={
               <Button type="button" size="sm" variant="outline" onClick={addRule}>
-                <PlusIcon className="h-3.5 w-3.5" weight="bold" />
+                <MaterialIcon name="add" className="h-3.5 w-3.5" />
                 Add rule
               </Button>
             }
@@ -238,40 +232,34 @@ const ToggleSwitch = ({
   value: boolean;
   onChange: (v: boolean) => void;
 }): React.JSX.Element => (
-  <button
-    type="button"
-    role="switch"
-    aria-checked={value}
-    onClick={() => onChange(!value)}
-    className={cn(
-      'relative inline-flex h-7 w-14 items-center rounded-full border transition-colors',
-      value ? 'border-primary bg-primary' : 'border-input bg-muted',
-    )}
-  >
-    <span
+  <div className="inline-flex items-center gap-3">
+    <button
+      type="button"
+      role="switch"
+      aria-checked={value}
+      onClick={() => onChange(!value)}
       className={cn(
-        'inline-block h-5 w-5 rounded-full bg-background shadow-sm transition-transform',
-        value ? 'translate-x-8' : 'translate-x-1',
-      )}
-    />
-    <span className="sr-only">{value ? 'true' : 'false'}</span>
-    <span
-      className={cn(
-        'absolute right-2 text-[10px] font-semibold uppercase tracking-wide transition-opacity',
-        value ? 'text-primary-foreground opacity-100' : 'opacity-0',
+        'relative inline-flex h-7 w-12 items-center rounded-full border transition-colors',
+        value ? 'border-tertiary/50 bg-tertiary/30' : 'border-white/15 bg-white/5',
       )}
     >
-      ON
-    </span>
+      <span
+        className={cn(
+          'inline-block h-5 w-5 rounded-full bg-on-surface shadow-[0_2px_8px_rgba(0,0,0,0.3)] transition-transform',
+          value ? 'translate-x-6' : 'translate-x-1',
+        )}
+      />
+      <span className="sr-only">{value ? 'true' : 'false'}</span>
+    </button>
     <span
       className={cn(
-        'absolute left-2 text-[10px] font-semibold uppercase tracking-wide transition-opacity',
-        !value ? 'text-muted-foreground opacity-100' : 'opacity-0',
+        'font-mono text-xs font-semibold uppercase tracking-wide tabular-nums',
+        value ? 'text-tertiary' : 'text-on-surface-variant',
       )}
     >
-      OFF
+      {value ? 'true' : 'false'}
     </span>
-  </button>
+  </div>
 );
 
 /**
@@ -380,7 +368,7 @@ const RuleRow = ({ rule, isNumeric, onChange, onRemove }: RuleRowProps): React.J
         aria-label="Remove rule"
         className="mt-1 rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
       >
-        <TrashIcon className="h-3.5 w-3.5" weight="bold" />
+        <MaterialIcon name="delete" className="h-3.5 w-3.5" />
       </button>
     </div>
   </li>
@@ -471,9 +459,9 @@ const TestAsUserPanel = ({ name }: { name: FlagName }): React.JSX.Element => {
           )}
         >
           {result.value ? (
-            <CheckCircleIcon className="h-4 w-4" weight="bold" />
+            <MaterialIcon name="check_circle" className="h-4 w-4" />
           ) : (
-            <XCircleIcon className="h-4 w-4" weight="bold" />
+            <MaterialIcon name="cancel" className="h-4 w-4" />
           )}
           <span className="font-mono font-semibold">{String(result.value)}</span>
           <span className="text-xs opacity-70">
@@ -498,7 +486,7 @@ const TestAsUserPanel = ({ name }: { name: FlagName }): React.JSX.Element => {
     >
       <div className="space-y-2 rounded-md border bg-muted/20 p-3">
         <div className="flex items-center gap-2 text-xs text-muted-foreground">
-          <UserCircleIcon className="h-4 w-4" weight="bold" />
+          <MaterialIcon name="account_circle" className="h-4 w-4" />
           <span>Synthetic context</span>
         </div>
         <div className="grid grid-cols-3 gap-2">

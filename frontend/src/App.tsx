@@ -8,6 +8,7 @@ import { Toaster } from '@/components/ui/sonner';
 import { AdminShell } from '@/pages/admin-page';
 import { FlagsPanel } from '@/pages/admin/flags-panel';
 import { UsersPanel } from '@/pages/admin/users-panel';
+import { ArchivedPage } from '@/pages/archived-page';
 import { ChatPage } from '@/pages/chat-page';
 import { LoginPage } from '@/pages/auth/login-page';
 import { RegisterPage } from '@/pages/auth/register-page';
@@ -104,6 +105,7 @@ export const App = (): React.JSX.Element => (
         }
       >
         <Route path="/chat" element={<ChatPage />} />
+        <Route path="/chat/archived" element={<ArchivedPage />} />
         <Route path="/chat/:chatId" element={<ChatPage />} />
         <Route
           path="/admin"

@@ -1,4 +1,3 @@
-import { CircleNotchIcon, UserPlusIcon } from '@phosphor-icons/react';
 import { useState, type FormEvent } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
@@ -11,6 +10,7 @@ import { Label } from '@/components/ui/label';
 import { useAuthStore } from '@/store/auth-store';
 
 import { AuthLayout } from './auth-layout';
+import { MaterialIcon } from '@/components/ui/material-icon';
 
 export const RegisterPage = (): React.JSX.Element => {
   const navigate = useNavigate();
@@ -95,10 +95,10 @@ export const RegisterPage = (): React.JSX.Element => {
         </div>
         <Button type="submit" className="w-full" disabled={submitting}>
           {submitting ? (
-            <CircleNotchIcon className="h-4 w-4 animate-spin" weight="bold" />
+            <MaterialIcon name="progress_activity" className="h-4 w-4 animate-spin" />
           ) : (
             <>
-              <UserPlusIcon className="h-4 w-4" weight="bold" />
+              <MaterialIcon name="person_add" className="h-4 w-4" />
               Create account
             </>
           )}

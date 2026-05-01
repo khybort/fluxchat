@@ -1,7 +1,7 @@
-import { PaperPlaneTiltIcon, StopIcon } from '@phosphor-icons/react';
 import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from 'react';
 
 import { Button } from '@/components/ui/button';
+import { MaterialIcon } from '@/components/ui/material-icon';
 import { Textarea } from '@/components/ui/textarea';
 import { cn } from '@/lib/utils';
 
@@ -23,7 +23,6 @@ export const Composer = ({
   const [value, setValue] = useState('');
   const ref = useRef<HTMLTextAreaElement>(null);
 
-  // Auto-grow textarea
   useEffect(() => {
     const node = ref.current;
     if (!node) return;
@@ -51,43 +50,51 @@ export const Composer = ({
   };
 
   return (
-    <form onSubmit={handleFormSubmit} className="border-t bg-background px-4 py-3 md:px-6">
-      <div
-        className={cn(
-          'flex items-end gap-2 rounded-md border bg-card p-2 transition-shadow',
-          'focus-within:ring-1 focus-within:ring-ring focus-within:border-ring',
-          disabled && 'opacity-60',
-        )}
-      >
-        <Textarea
-          ref={ref}
-          rows={1}
-          value={value}
-          onChange={(e) => setValue(e.target.value)}
-          onKeyDown={handleKey}
-          placeholder={placeholder}
-          disabled={disabled || busy}
-          className="min-h-[40px] flex-1 resize-none border-0 bg-transparent px-2 py-2 text-sm shadow-none focus-visible:ring-0 focus-visible:ring-offset-0"
-        />
-        {busy && onCancel ? (
-          <Button
-            type="button"
-            size="icon"
-            variant="ghost"
-            onClick={onCancel}
-            className="text-destructive hover:bg-destructive/10"
-          >
-            <StopIcon className="h-5 w-5" weight="bold" />
-          </Button>
-        ) : (
-          <Button type="submit" size="icon" disabled={disabled || busy || !value.trim()}>
-            <PaperPlaneTiltIcon className="h-4 w-4" weight="bold" />
-          </Button>
-        )}
+    <form onSubmit={handleFormSubmit} className="px-4 pb-6 md:px-12 md:pb-8">
+      <div className="w-full">
+        <div
+          className={cn(
+            'flex items-end gap-3 rounded-[2.5rem] border border-white/15 bg-surface-container/60 p-3 backdrop-blur-[30px] shadow-[0_20px_50px_rgba(0,0,0,0.4)] transition-shadow',
+            'focus-within:border-tertiary/40 focus-within:ring-2 focus-within:ring-tertiary/30',
+            disabled && 'opacity-60',
+          )}
+        >
+          <Textarea
+            ref={ref}
+            rows={1}
+            value={value}
+            onChange={(e) => setValue(e.target.value)}
+            onKeyDown={handleKey}
+            placeholder={placeholder}
+            disabled={disabled || busy}
+            className="min-h-[40px] flex-1 resize-none border-0 bg-transparent px-3 py-2 text-sm text-on-surface placeholder:text-on-surface-variant shadow-none focus-visible:ring-0 focus-visible:ring-offset-0"
+          />
+          {busy && onCancel ? (
+            <Button
+              type="button"
+              size="icon"
+              variant="ghost"
+              onClick={onCancel}
+              className="rounded-full text-error hover:bg-error/10"
+            >
+              <MaterialIcon name="stop" className="text-xl" />
+            </Button>
+          ) : (
+            <Button
+              type="submit"
+              variant="gradient"
+              disabled={disabled || busy || !value.trim()}
+              className="h-11 rounded-full px-5"
+            >
+              <span>Send</span>
+              <MaterialIcon name="send" className="text-base" />
+            </Button>
+          )}
+        </div>
+        <p className="mt-3 text-center text-[10px] uppercase tracking-[0.2em] text-on-surface-variant font-bold">
+          AppNation Intelligence can make mistakes · Verify important info
+        </p>
       </div>
-      <p className="mt-2 px-2 text-[10px] uppercase tracking-wider text-muted-foreground">
-        Enter to send · Shift + Enter for newline
-      </p>
     </form>
   );
 };

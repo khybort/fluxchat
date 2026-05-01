@@ -1,9 +1,8 @@
 import { motion } from 'framer-motion';
-import { FlagIcon, HashIcon } from '@phosphor-icons/react';
-
 import type { FeatureFlagsSnapshot } from '@/api/types';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
+import { MaterialIcon } from '@/components/ui/material-icon';
 
 interface FeatureFlagsPanelProps {
   flags: FeatureFlagsSnapshot | null;
@@ -28,7 +27,7 @@ export const FeatureFlagsPanel = ({ flags }: FeatureFlagsPanelProps): React.JSX.
     className="rounded-lg border bg-card/60 p-3"
   >
     <div className="mb-2 flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
-      <FlagIcon className="h-3 w-3" weight="regular" />
+      <MaterialIcon name="flag" className="h-3 w-3" />
       Runtime feature flags
     </div>
     {!flags ? (
@@ -56,7 +55,7 @@ export const FeatureFlagsPanel = ({ flags }: FeatureFlagsPanelProps): React.JSX.
           <li key={key} className="flex items-center justify-between gap-2">
             <span className="truncate font-mono text-[11px] text-muted-foreground">{key}</span>
             <Badge variant="outline" className="gap-1 px-2 font-mono text-[10px]">
-              <HashIcon className="h-2.5 w-2.5" />
+              <MaterialIcon name="tag" className="h-2.5 w-2.5" />
               {flags[key]}
             </Badge>
           </li>

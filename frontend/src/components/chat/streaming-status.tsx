@@ -1,6 +1,5 @@
 import { motion } from 'framer-motion';
-import { BrainIcon } from '@phosphor-icons/react';
-
+import { MaterialIcon } from '@/components/ui/material-icon';
 interface StreamingStatusProps {
   label: string;
 }
@@ -16,7 +15,7 @@ export const StreamingStatus = ({ label }: StreamingStatusProps): React.JSX.Elem
       <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-primary opacity-75" />
       <span className="relative inline-flex h-2 w-2 rounded-full bg-primary" />
     </span>
-    <BrainIcon className="h-3 w-3" weight="bold" />
+    <MaterialIcon name="psychology" className="h-3 w-3" />
     {label}
   </motion.div>
 );

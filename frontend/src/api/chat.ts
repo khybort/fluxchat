@@ -52,3 +52,29 @@ export const deleteChat = (token: string, chatId: string): Promise<void> =>
     method: 'DELETE',
     token,
   });
+
+export const archiveChat = (token: string, chatId: string): Promise<void> =>
+  apiFetch<void>(`/api/chats/${encodeURIComponent(chatId)}/archive`, {
+    method: 'POST',
+    token,
+  });
+
+export const unarchiveChat = (token: string, chatId: string): Promise<void> =>
+  apiFetch<void>(`/api/chats/${encodeURIComponent(chatId)}/unarchive`, {
+    method: 'POST',
+    token,
+  });
+
+export const listArchivedChats = (
+  token: string,
+  opts: { cursor?: string | null; limit?: number } = {},
+): Promise<PageResult<Chat>> => {
+  const params = new URLSearchParams();
+  if (opts.cursor) params.set('cursor', opts.cursor);
+  if (opts.limit) params.set('limit', String(opts.limit));
+  const query = params.toString();
+  return apiFetch<PageResult<Chat>>(`/api/chats/archived${query ? `?${query}` : ''}`, {
+    method: 'GET',
+    token,
+  });
+};

@@ -1,21 +1,13 @@
 import { AnimatePresence, motion } from 'framer-motion';
-import {
-  CaretDownIcon,
-  ChatCircleIcon,
-  ChatTeardropDotsIcon,
-  CircleNotchIcon,
-  DotsThreeIcon,
-  MagnifyingGlassIcon,
-  TrashIcon,
-} from '@phosphor-icons/react';
 import { useEffect, useMemo, useState } from 'react';
 import { NavLink, useNavigate, useParams } from 'react-router-dom';
 import { toast } from 'sonner';
 
-import { deleteChat, listChats } from '@/api/chat';
+import { archiveChat, deleteChat, listChats } from '@/api/chat';
 import { ApiError } from '@/api/client';
 import type { Chat } from '@/api/types';
 import { Button } from '@/components/ui/button';
+import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -23,6 +15,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Input } from '@/components/ui/input';
+import { MaterialIcon } from '@/components/ui/material-icon';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn, formatRelativeTime } from '@/lib/utils';
@@ -48,6 +41,8 @@ export const ChatSidebar = ({ onNavigate }: ChatSidebarProps): React.JSX.Element
   const [error, setError] = useState<string | null>(null);
   const [query, setQuery] = useState('');
   const [pendingDelete, setPendingDelete] = useState<string | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState<Chat | null>(null);
+  const [confirmArchive, setConfirmArchive] = useState<Chat | null>(null);
 
   useEffect(() => {
     if (!token) return;
@@ -113,48 +108,68 @@ export const ChatSidebar = ({ onNavigate }: ChatSidebarProps): React.JSX.Element
 
   const handleDelete = async (chat: Chat): Promise<void> => {
     if (!token) return;
-    if (!window.confirm(`Delete "${chat.title}"? This cannot be undone.`)) return;
     setPendingDelete(chat.id);
-    // Optimistic — remove from local list first; reconcile via refresh below.
     setChats((prev) => prev.filter((c) => c.id !== chat.id));
     try {
       await deleteChat(token, chat.id);
       toast.success('Chat deleted');
       notifyChatDeleted();
-      // If the user is currently inside the chat we just deleted, bounce
-      // them to the new-chat landing page so they don't stare at a 404.
       if (activeChatId === chat.id) {
         navigate('/chat', { replace: true });
       }
     } catch (err) {
       const message = err instanceof ApiError ? err.message : 'Failed to delete chat';
       toast.error(message);
-      // Rollback optimistic removal on failure.
       setChats((prev) => (prev.some((c) => c.id === chat.id) ? prev : [chat, ...prev]));
     } finally {
       setPendingDelete(null);
     }
   };
 
+  const handleArchive = async (chat: Chat): Promise<void> => {
+    if (!token) return;
+    setChats((prev) => prev.filter((c) => c.id !== chat.id));
+    try {
+      await archiveChat(token, chat.id);
+      toast.success('Chat archived');
+      notifyChatDeleted();
+      if (activeChatId === chat.id) {
+        navigate('/chat', { replace: true });
+      }
+    } catch (err) {
+      const message = err instanceof ApiError ? err.message : 'Failed to archive chat';
+      toast.error(message);
+      setChats((prev) => (prev.some((c) => c.id === chat.id) ? prev : [chat, ...prev]));
+    }
+  };
+
   return (
     <div className="flex flex-1 flex-col overflow-hidden">
-      <div className="space-y-2 px-3 py-3">
-        <Button onClick={handleNew} className="w-full justify-start gap-2" size="sm">
-          <ChatTeardropDotsIcon className="h-4 w-4" weight="regular" />
+      <div className="space-y-3 px-4 py-4">
+        <Button
+          onClick={handleNew}
+          variant="gradient"
+          className="w-full justify-center gap-2 rounded-2xl py-4 font-bold"
+        >
+          <MaterialIcon name="chat_bubble" filled className="text-base" />
           New chat
         </Button>
         <div className="relative">
-          <MagnifyingGlassIcon
-            weight="bold"
-            className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground"
+          <MaterialIcon
+            name="search"
+            className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-base text-on-surface-variant"
           />
           <Input
-            placeholder="Search chats…"
+            placeholder="Search history…"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            className="h-9 pl-8 text-sm"
+            className="h-9 rounded-xl pl-9 text-xs"
           />
         </div>
+      </div>
+      <div className="flex items-center justify-between px-5 py-2 text-[10px] uppercase tracking-[0.2em] text-on-surface-variant font-bold">
+        <span>Recent</span>
+        <MaterialIcon name="expand_more" className="text-sm" />
       </div>
 
       <ScrollArea className="flex-1">
@@ -189,21 +204,22 @@ export const ChatSidebar = ({ onNavigate }: ChatSidebarProps): React.JSX.Element
                       onClick={onNavigate}
                       className={({ isActive }) =>
                         cn(
-                          'flex items-start gap-2.5 rounded-md px-2.5 py-2 pr-9 text-left text-sm transition-colors',
-                          'hover:bg-accent',
+                          'flex items-center gap-3 rounded-xl px-4 py-3 pr-9 text-left text-sm transition-all',
+                          'border-l-4 border-transparent text-on-surface-variant hover:bg-white/5 hover:text-on-surface',
                           (isActive || chat.id === activeChatId) &&
-                            'bg-accent font-medium text-accent-foreground',
+                            'border-primary-container bg-gradient-to-r from-primary-container/20 to-transparent text-on-surface',
                         )
                       }
                     >
-                      <span className="mt-0.5 flex h-7 w-7 flex-none items-center justify-center rounded-md bg-secondary text-muted-foreground group-hover:text-foreground">
-                        <ChatCircleIcon className="h-3.5 w-3.5" weight="bold" />
-                      </span>
+                      <MaterialIcon
+                        name="chat_bubble"
+                        className="text-xl flex-none text-primary-container"
+                      />
                       <span className="min-w-0 flex-1">
-                        <span className="block truncate font-medium leading-tight">
+                        <span className="block truncate text-sm font-medium leading-tight">
                           {chat.title}
                         </span>
-                        <span className="mt-0.5 block text-[11px] text-muted-foreground">
+                        <span className="mt-0.5 block text-[10px] uppercase tracking-wider text-on-surface-variant">
                           {formatRelativeTime(chat.updatedAt)}
                         </span>
                       </span>
@@ -227,18 +243,28 @@ export const ChatSidebar = ({ onNavigate }: ChatSidebarProps): React.JSX.Element
                           disabled={pendingDelete === chat.id}
                         >
                           {pendingDelete === chat.id ? (
-                            <CircleNotchIcon className="h-3.5 w-3.5 animate-spin" weight="bold" />
+                            <MaterialIcon
+                              name="progress_activity"
+                              className="h-3.5 w-3.5 animate-spin"
+                            />
                           ) : (
-                            <DotsThreeIcon className="h-4 w-4" weight="bold" />
+                            <MaterialIcon name="more_horiz" className="h-4 w-4" />
                           )}
                         </button>
                       </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end" className="w-40">
+                      <DropdownMenuContent align="end" className="w-44">
                         <DropdownMenuItem
-                          onSelect={() => void handleDelete(chat)}
-                          className="text-destructive focus:bg-destructive/10 focus:text-destructive"
+                          onSelect={() => setConfirmArchive(chat)}
+                          className="focus:bg-tertiary/10 focus:text-tertiary"
                         >
-                          <TrashIcon className="h-3.5 w-3.5" weight="bold" />
+                          <MaterialIcon name="archive" className="text-base" />
+                          Archive
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          onSelect={() => setConfirmDelete(chat)}
+                          className="text-error focus:bg-error/10 focus:text-error"
+                        >
+                          <MaterialIcon name="delete" className="text-base" />
                           Delete
                         </DropdownMenuItem>
                       </DropdownMenuContent>
@@ -258,10 +284,10 @@ export const ChatSidebar = ({ onNavigate }: ChatSidebarProps): React.JSX.Element
               disabled={loadingMore}
             >
               {loadingMore ? (
-                <CircleNotchIcon className="h-3 w-3 animate-spin" weight="bold" />
+                <MaterialIcon name="progress_activity" className="h-3 w-3 animate-spin" />
               ) : (
                 <>
-                  <CaretDownIcon className="h-3 w-3" weight="bold" />
+                  <MaterialIcon name="expand_more" className="h-3 w-3" />
                   Load more
                 </>
               )}
@@ -269,6 +295,31 @@ export const ChatSidebar = ({ onNavigate }: ChatSidebarProps): React.JSX.Element
           ) : null}
         </div>
       </ScrollArea>
+
+      <ConfirmDialog
+        open={confirmDelete !== null}
+        onOpenChange={(open) => !open && setConfirmDelete(null)}
+        title={`Delete "${confirmDelete?.title ?? ''}"?`}
+        description="This cannot be undone. The chat and all of its messages will be removed."
+        confirmLabel="Delete"
+        tone="destructive"
+        icon="delete_forever"
+        onConfirm={async () => {
+          if (confirmDelete) await handleDelete(confirmDelete);
+        }}
+      />
+      <ConfirmDialog
+        open={confirmArchive !== null}
+        onOpenChange={(open) => !open && setConfirmArchive(null)}
+        title={`Archive "${confirmArchive?.title ?? ''}"?`}
+        description="The chat is hidden from the active list. You can restore it from the Archive page."
+        confirmLabel="Archive"
+        tone="warning"
+        icon="archive"
+        onConfirm={async () => {
+          if (confirmArchive) await handleArchive(confirmArchive);
+        }}
+      />
     </div>
   );
 };
@@ -282,7 +333,7 @@ const EmptyState = ({
 }): React.JSX.Element => (
   <div className="flex flex-col items-center justify-center gap-2 px-2 py-10 text-center">
     <div className="flex h-10 w-10 items-center justify-center rounded-full bg-muted">
-      <ChatCircleIcon className="h-4 w-4 text-muted-foreground" weight="regular" />
+      <MaterialIcon name="chat_bubble" className="h-4 w-4 text-muted-foreground" />
     </div>
     <p className="text-sm font-medium">{hasChats && query ? 'No matches' : 'No chats yet'}</p>
     <p className="text-xs text-muted-foreground">

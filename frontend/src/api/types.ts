@@ -69,6 +69,7 @@ export interface Chat {
   userId: string;
   createdAt: string;
   updatedAt: string;
+  archivedAt?: string | null;
 }
 
 export type MessageRole = 'user' | 'assistant' | 'system';
