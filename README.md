@@ -56,12 +56,23 @@ Two supported paths. **Docker is the recommended one** — it gives you a clean,
 cp .env.example .env                 # set JWT_SECRET, APP_CHECK_TOKEN, AI keys
 cp frontend/.env.example frontend/.env
 
-make docker-dev                      # db + api (tsx watch) + web (vite), all in containers
-# in a second terminal, once db is healthy:
+make docker-dev                      # db + api (tsx watch) + web (vite), all in containers (detached)
+make docker-dev-logs                 # tail logs (Ctrl+C just detaches; containers keep running)
+# once db is healthy:
 make migrate ARGS="--name init"      # apply Prisma migrations against the dev db
+make prisma-seed                     # seed demo accounts (see below)
 ```
 
 Backend on `:3000`, frontend on `:5173`, Postgres on `:5432` (forwarded so `make migrate` from the host hits the same db). Stop with `make docker-dev-down`.
+
+**Demo accounts** (created by `make prisma-seed`):
+
+| Role | Email | Password |
+|---|---|---|
+| `admin` | `admin@appnation.com` | `TestingAdmin123!` |
+| `user` | `user@appnation.com` | `TestingUser123!` |
+
+Both are upserted, so re-running the seed is safe.
 
 On macOS/Windows, if HMR misses file events, set `CHOKIDAR_USEPOLLING=true` in `.env`.
 
@@ -74,6 +85,7 @@ cp frontend/.env.example frontend/.env
 
 make db-up                           # local Postgres in a container
 make migrate ARGS="--name init"      # apply Prisma migrations
+make prisma-seed                     # seed demo accounts (admin@ + user@appnation.com)
 make dev                             # backend + frontend, hot reload, on :3000 + :5173
 ```
 
@@ -93,6 +105,7 @@ For the full menu run `make help`. Common targets:
 | `make build` | Build both (`tsc` + `vite build`). |
 | `make verify` | typecheck + lint + tests + `prisma:check` — same gate as `pre-push`. |
 | `make migrate ARGS="--name x"` | Create + apply a dev migration. |
+| `make prisma-seed` | Seed the configured DB with the demo `admin@` + `user@appnation.com` accounts (idempotent — upsert). |
 | `make migrate-check` | DB-less schema validation (`prisma validate` + `format --check`). |
 | `make migrate-shadow-check` | Real drift check via a throwaway Postgres container. |
 | `make docker-prod` | Run prod profile in Docker (compiled image, runs migrations on startup). |
