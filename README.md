@@ -169,12 +169,19 @@ Same request, returns `{"message": {"role":"assistant","content":"..."}, "toolCa
 |---|---|---|---|
 | `STREAMING_ENABLED` | bool | `true` | SSE vs JSON for completion |
 | `PAGINATION_LIMIT` | int (10–100) | `20` | Max page size for chat list and history |
-| `AI_TOOLS_ENABLED` | bool | `false` | AI may call mocked tools |
+| `AI_TOOLS_ENABLED` | bool | `false` | Master switch — AI may call mocked tools |
 | `CHAT_HISTORY_ENABLED` | bool | `true` | `false` ⇒ last 10 messages only |
 | `RATE_LIMIT_PER_MINUTE` | int | `60` | Per-route, per-user (or per-(user, client)) ceiling |
 | `COMPLETION_ENABLED` | bool | `true` | Kill-switch — false returns `404 FEATURE_DISABLED` for the completion route |
+| `TOOL_CALCULATOR_ENABLED` | bool | `true` | Subordinate to `AI_TOOLS_ENABLED` — exposes the calculator tool |
+| `TOOL_CURRENT_TIME_ENABLED` | bool | `true` | Subordinate — exposes the time tool |
+| `TOOL_CURRENT_WEATHER_ENABLED` | bool | `true` | Subordinate — exposes the weather tool |
+| `TOOL_CONVERT_CURRENCY_ENABLED` | bool | `true` | Subordinate — exposes the FX tool |
+| `TOOL_SEARCH_WEB_ENABLED` | bool | `true` | Subordinate — exposes the web-search tool |
 
 The first four flags drive **behavior** via the Strategy + Factory pair (e.g. [`CompletionStrategyFactory`](./src/modules/chat/strategies/completion-strategy.factory.ts), [`HistoryStrategyFactory`](./src/modules/chat/strategies/history-strategy.factory.ts)) — controllers stay branch-free. `COMPLETION_ENABLED` is a route-specific **middleware** kill-switch via [`featureFlagGuard`](./src/shared/middleware/feature-flag-guard.ts) — when off, the completion route short-circuits with 404 (case §6 "Important Note": route-specific feature checks).
+
+The five `TOOL_*_ENABLED` flags are **subordinate** to `AI_TOOLS_ENABLED`: the master must be on for any tool to fire, and each per-tool flag then independently includes/excludes that tool from the model's allowlist via [`resolveEnabledTools`](./src/infrastructure/ai/tools/resolve-enabled.ts). This lets ops disable a single noisy/expensive tool (e.g. `searchWeb`) without taking the whole tool feature offline.
 
 ### Targeting & rollout (rule + percentage)
 
