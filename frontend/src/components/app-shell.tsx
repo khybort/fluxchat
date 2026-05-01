@@ -146,15 +146,18 @@ export const AppShell = (): React.JSX.Element => {
                   <span className="text-sm">{user?.name ?? 'Account'}</span>
                   <span className="text-xs font-normal text-muted-foreground">{user?.email}</span>
                 </DropdownMenuLabel>
-                <DropdownMenuSeparator />
                 {user?.role === 'admin' ? (
-                  <DropdownMenuItem asChild>
-                    <Link to="/admin/flags" className="cursor-pointer">
-                      <FlagIcon className="h-4 w-4" weight="bold" />
-                      Feature flags
-                    </Link>
-                  </DropdownMenuItem>
+                  <>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem asChild>
+                      <Link to="/admin/flags" className="cursor-pointer">
+                        <FlagIcon className="h-4 w-4" weight="bold" />
+                        Feature flags
+                      </Link>
+                    </DropdownMenuItem>
+                  </>
                 ) : null}
+                <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={handleLogout} className="text-destructive">
                   <SignOutIcon className="h-4 w-4" weight="bold" />
                   Sign out

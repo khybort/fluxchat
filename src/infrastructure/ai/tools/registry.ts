@@ -76,13 +76,25 @@ export const toAnthropicTools = (): Array<{
   description: string;
   input_schema: AnthropicInputSchema;
 }> =>
-  ALL_TOOLS.map((t) => ({
-    name: t.name,
-    description: t.description,
-    input_schema: zodToJsonSchema(t.parameters, {
-      target: 'openApi3',
-    }) as unknown as AnthropicInputSchema,
-  }));
+  ALL_TOOLS.map((t) => {
+    // `jsonSchema7` produces draft-07, which Anthropic accepts under their
+    // "must match JSON Schema draft 2020-12" rule (the keywords we use —
+    // type, properties, required, enum, minimum/maximum — are unchanged
+    // between drafts). The earlier `openApi3` target was invalid: Anthropic
+    // returned 400 on the currency tool because OpenAPI's enum encoding
+    // diverges from the JSON Schema spec they validate against.
+    const raw = zodToJsonSchema(t.parameters, {
+      target: 'jsonSchema7',
+      $refStrategy: 'none',
+    }) as { $schema?: string } & Record<string, unknown>;
+    // Strip the $schema marker — Anthropic rejects extra top-level fields.
+    delete raw.$schema;
+    return {
+      name: t.name,
+      description: t.description,
+      input_schema: raw as unknown as AnthropicInputSchema,
+    };
+  });
 
 /**
  * Vercel AI SDK shape: a `Record<name, ai.tool(...)>`. Used by Groq +
