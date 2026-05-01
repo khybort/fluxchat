@@ -47,6 +47,13 @@ export const ChatPage = (): React.JSX.Element => {
   const [flags, setFlags] = useState<FeatureFlagsSnapshot | null>(null);
   const abortRef = useRef<AbortController | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
+  // Tracks the chatId we just minted in `handleSend`. The chatId-watcher
+  // useEffect skips its history-fetch + pending-reset for that one id, so
+  // the optimistic user message + "thinking" state painted by the handler
+  // survive the URL change. Without this, the very first message in a
+  // brand-new chat would render with no feedback because the watcher would
+  // wipe the state right after navigate().
+  const justCreatedChatIdRef = useRef<string | null>(null);
 
   // Initial flags snapshot
   useEffect(() => {
@@ -65,6 +72,15 @@ export const ChatPage = (): React.JSX.Element => {
   useEffect(() => {
     if (!chatId || !token) {
       setMessages([]);
+      return;
+    }
+    // If this chatId was created by `handleSend` in the current session, the
+    // handler has already painted the optimistic user message and the
+    // "thinking" pending state. The chat row has no messages on the server
+    // yet (the user message is being written + the AI is mid-stream), so a
+    // history fetch would only race the handler and clobber its state.
+    if (justCreatedChatIdRef.current === chatId) {
+      justCreatedChatIdRef.current = null;
       return;
     }
     let cancelled = false;
@@ -122,6 +138,10 @@ export const ChatPage = (): React.JSX.Element => {
           const newChat = await createChat(token, { title: text.slice(0, 60) });
           activeChatId = newChat.id;
           notifyChatCreated(newChat);
+          // Tell the chatId-watcher useEffect to leave the state we're
+          // about to set alone for this one id — the optimistic user
+          // message + thinking pending must survive the URL change.
+          justCreatedChatIdRef.current = newChat.id;
           navigate(`/chat/${newChat.id}`, { replace: true });
         } catch (err) {
           const message = err instanceof ApiError ? err.message : 'Failed to start a chat';
