@@ -14,6 +14,10 @@ import { createApp } from '../dist/app.js';
 import { buildContainer } from '../dist/di/container.js';
 
 const container = buildContainer();
+// Cold start must reflect DB overrides; otherwise admin-UI edits stay invisible
+// until the lambda happens to handle the admin save itself. Top-level await is
+// fine in Vercel's ESM runtime and the SELECT is cheap (<10 rows).
+await container.flags.reload();
 const app = createApp(container);
 
 export default app;

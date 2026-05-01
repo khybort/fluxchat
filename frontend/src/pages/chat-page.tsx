@@ -4,16 +4,10 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { toast } from 'sonner';
 
-import { completion, createChat, getHistory } from '@/api/chat';
+import { createChat, getHistory } from '@/api/chat';
 import { ApiError } from '@/api/client';
 import { openSseStream } from '@/api/sse';
-import type {
-  CompletionJsonResponse,
-  FeatureFlagsSnapshot,
-  Message,
-  StreamEvent,
-  ToolCall,
-} from '@/api/types';
+import type { FeatureFlagsSnapshot, Message, StreamEvent, ToolCall } from '@/api/types';
 import { Composer } from '@/components/chat/composer';
 import { MessageBubble } from '@/components/chat/message-bubble';
 import { StreamingStatus } from '@/components/chat/streaming-status';
@@ -167,44 +161,29 @@ export const ChatPage = (): React.JSX.Element => {
       });
       setBusy(true);
 
-      const streamingEnabled = flags?.STREAMING_ENABLED ?? true;
-
+      // Always open via openSseStream regardless of `STREAMING_ENABLED`. The
+      // helper transparently adapts a JSON response (when the server has
+      // streaming off) into the same event sequence an SSE response yields, so
+      // there is no client/server flag-drift class — a brief mismatch between
+      // /healthz and the lambda that handles a request can no longer surface
+      // as "Completion failed".
       try {
-        if (streamingEnabled) {
-          const controller = new AbortController();
-          abortRef.current = controller;
+        const controller = new AbortController();
+        abortRef.current = controller;
 
-          for await (const event of openSseStream({
-            path: `/api/chats/${encodeURIComponent(activeChatId)}/completion`,
-            body: { message: text },
-            token,
-            signal: controller.signal,
-          })) {
-            applyEvent(event, setPending);
-          }
-
-          // Finalize: lift the streamed assistant text into messages
-          setPending((current) => {
-            if (current) commitPending(current, setMessages);
-            return null;
-          });
-        } else {
-          const response: CompletionJsonResponse = await completion(token, activeChatId, text);
-          const assistantMessage: Message = {
-            id: assistantId,
-            chatId: activeChatId,
-            role: 'assistant',
-            content: response.message.content,
-            createdAt: new Date().toISOString(),
-          };
-          setMessages((prev) => [...prev, assistantMessage]);
-          setPending(null);
-          if (response.toolCalls.length > 0) {
-            toast.message('Tools used', {
-              description: response.toolCalls.map((t) => t.name).join(', '),
-            });
-          }
+        for await (const event of openSseStream({
+          path: `/api/chats/${encodeURIComponent(activeChatId)}/completion`,
+          body: { message: text },
+          token,
+          signal: controller.signal,
+        })) {
+          applyEvent(event, setPending);
         }
+
+        setPending((current) => {
+          if (current) commitPending(current, setMessages);
+          return null;
+        });
       } catch (err) {
         if (err instanceof DOMException && err.name === 'AbortError') {
           // user cancelled — pending already cleared by cancel()
@@ -218,7 +197,7 @@ export const ChatPage = (): React.JSX.Element => {
         setBusy(false);
       }
     },
-    [chatId, token, flags?.STREAMING_ENABLED, navigate, notifyChatCreated],
+    [chatId, token, navigate, notifyChatCreated],
   );
 
   if (!chatId) {
