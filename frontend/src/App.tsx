@@ -5,8 +5,9 @@ import { getMe } from '@/api/auth';
 import { ApiError } from '@/api/client';
 import { AppShell } from '@/components/app-shell';
 import { Toaster } from '@/components/ui/sonner';
-import { AdminFlagsPage } from '@/pages/admin-flags-page';
-import { AdminUsersPage } from '@/pages/admin-users-page';
+import { AdminShell } from '@/pages/admin-page';
+import { FlagsPanel } from '@/pages/admin/flags-panel';
+import { UsersPanel } from '@/pages/admin/users-panel';
 import { ChatPage } from '@/pages/chat-page';
 import { LoginPage } from '@/pages/auth/login-page';
 import { RegisterPage } from '@/pages/auth/register-page';
@@ -105,21 +106,17 @@ export const App = (): React.JSX.Element => (
         <Route path="/chat" element={<ChatPage />} />
         <Route path="/chat/:chatId" element={<ChatPage />} />
         <Route
-          path="/admin/flags"
+          path="/admin"
           element={
             <AdminRoute>
-              <AdminFlagsPage />
+              <AdminShell />
             </AdminRoute>
           }
-        />
-        <Route
-          path="/admin/users"
-          element={
-            <AdminRoute>
-              <AdminUsersPage />
-            </AdminRoute>
-          }
-        />
+        >
+          <Route index element={<Navigate to="/admin/flags" replace />} />
+          <Route path="flags" element={<FlagsPanel />} />
+          <Route path="users" element={<UsersPanel />} />
+        </Route>
       </Route>
       <Route path="*" element={<Navigate to="/chat" replace />} />
     </Routes>

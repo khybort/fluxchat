@@ -1,5 +1,5 @@
 import { AnimatePresence, motion } from 'framer-motion';
-import { ChatsCircleIcon, RobotIcon, SparkleIcon } from '@phosphor-icons/react';
+import { RobotIcon, SparkleIcon } from '@phosphor-icons/react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { toast } from 'sonner';
@@ -326,8 +326,8 @@ const NewChatPanel = ({ onSubmit, busy, flags }: NewChatPanelProps): React.JSX.E
         transition={{ duration: 0.3, ease: 'easeOut' }}
         className="max-w-lg px-2 text-center"
       >
-        <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-md bg-primary text-primary-foreground">
-          <ChatsCircleIcon className="h-6 w-6" weight="bold" />
+        <div className="mx-auto mb-4 flex h-14 items-center justify-center rounded-lg bg-zinc-900 px-5">
+          <img src="/appnation-logo.png" alt="AppNation" className="h-7 w-auto" />
         </div>
         <h2 className="text-xl font-semibold tracking-tight">Start a new conversation</h2>
         <p className="mt-2 text-sm text-muted-foreground">

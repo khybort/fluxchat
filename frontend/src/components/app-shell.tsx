@@ -1,12 +1,10 @@
 import { motion } from 'framer-motion';
 import {
   CaretUpDownIcon,
-  FlagIcon,
   ListIcon,
   PulseIcon,
+  ShieldStarIcon,
   SignOutIcon,
-  SparkleIcon,
-  UsersIcon,
   XIcon,
 } from '@phosphor-icons/react';
 import { useEffect, useState } from 'react';
@@ -81,15 +79,12 @@ export const AppShell = (): React.JSX.Element => {
         >
           <div className="flex items-center justify-between border-b px-4 py-3">
             <div className="flex items-center gap-2.5">
-              <div className="flex h-9 w-9 items-center justify-center rounded-md bg-primary text-primary-foreground">
-                <SparkleIcon className="h-4 w-4" weight="bold" />
+              <div className="flex h-9 items-center justify-center rounded-md bg-zinc-900 px-2">
+                <img src="/appnation-logo.png" alt="AppNation" className="h-5 w-auto" />
               </div>
-              <div>
-                <p className="text-sm font-semibold leading-none">FluxChat</p>
-                <p className="mt-1 text-[10px] uppercase tracking-wider text-muted-foreground">
-                  AI Assistant
-                </p>
-              </div>
+              <p className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                AI Assistant
+              </p>
             </div>
             <Button
               variant="ghost"
@@ -152,14 +147,8 @@ export const AppShell = (): React.JSX.Element => {
                     <DropdownMenuSeparator />
                     <DropdownMenuItem asChild>
                       <Link to="/admin/flags" className="cursor-pointer">
-                        <FlagIcon className="h-4 w-4" weight="bold" />
-                        Feature flags
-                      </Link>
-                    </DropdownMenuItem>
-                    <DropdownMenuItem asChild>
-                      <Link to="/admin/users" className="cursor-pointer">
-                        <UsersIcon className="h-4 w-4" weight="bold" />
-                        Users
+                        <ShieldStarIcon className="h-4 w-4" weight="bold" />
+                        Admin
                       </Link>
                     </DropdownMenuItem>
                   </>
