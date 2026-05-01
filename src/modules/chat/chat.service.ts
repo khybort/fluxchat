@@ -60,4 +60,26 @@ export class ChatService {
       throw new NotFoundError('Chat not found');
     }
   }
+
+  public async listArchivedChats(input: ListChatsInput): Promise<PageResult<Chat>> {
+    const ceiling = this.flags.get('PAGINATION_LIMIT', { userId: input.userId });
+    const requested = input.limit ?? ceiling;
+    const limit = clamp(requested, PAGINATION.MIN_LIMIT, ceiling);
+
+    const rows = await this.chats.findArchivedByUser(input.userId, {
+      cursor: input.cursor,
+      limit,
+    });
+    return buildPagedResult(rows, limit, (c) => c.id);
+  }
+
+  public async archiveChat(chatId: string, userId: string): Promise<void> {
+    const ok = await this.chats.archive(chatId, userId);
+    if (!ok) throw new NotFoundError('Chat not found');
+  }
+
+  public async unarchiveChat(chatId: string, userId: string): Promise<void> {
+    const ok = await this.chats.unarchive(chatId, userId);
+    if (!ok) throw new NotFoundError('Chat not found');
+  }
 }

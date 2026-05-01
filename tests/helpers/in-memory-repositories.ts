@@ -13,8 +13,20 @@ export class InMemoryChatRepository implements IChatRepository {
 
   public async findByUser(userId: string, params: ListParams): Promise<Chat[]> {
     const sorted = this.chats
-      .filter((c) => c.userId === userId && c.deletedAt === null)
+      .filter((c) => c.userId === userId && c.deletedAt === null && c.archivedAt === null)
       .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+    let startIdx = 0;
+    if (params.cursor) {
+      const cursorIdx = sorted.findIndex((c) => c.id === params.cursor);
+      startIdx = cursorIdx >= 0 ? cursorIdx + 1 : 0;
+    }
+    return sorted.slice(startIdx, startIdx + params.limit + 1);
+  }
+
+  public async findArchivedByUser(userId: string, params: ListParams): Promise<Chat[]> {
+    const sorted = this.chats
+      .filter((c) => c.userId === userId && c.deletedAt === null && c.archivedAt !== null)
+      .sort((a, b) => b.archivedAt!.getTime() - a.archivedAt!.getTime());
     let startIdx = 0;
     if (params.cursor) {
       const cursorIdx = sorted.findIndex((c) => c.id === params.cursor);
@@ -38,6 +50,7 @@ export class InMemoryChatRepository implements IChatRepository {
       createdAt: now,
       updatedAt: now,
       deletedAt: null,
+      archivedAt: null,
     };
     this.chats.push(chat);
     return chat;
@@ -54,6 +67,26 @@ export class InMemoryChatRepository implements IChatRepository {
     );
     if (!chat) return false;
     chat.deletedAt = new Date();
+    return true;
+  }
+
+  public async archive(chatId: string, userId: string): Promise<boolean> {
+    const chat = this.chats.find(
+      (c) =>
+        c.id === chatId && c.userId === userId && c.deletedAt === null && c.archivedAt === null,
+    );
+    if (!chat) return false;
+    chat.archivedAt = new Date();
+    return true;
+  }
+
+  public async unarchive(chatId: string, userId: string): Promise<boolean> {
+    const chat = this.chats.find(
+      (c) =>
+        c.id === chatId && c.userId === userId && c.deletedAt === null && c.archivedAt !== null,
+    );
+    if (!chat) return false;
+    chat.archivedAt = null;
     return true;
   }
 }
@@ -105,5 +138,10 @@ export class InMemoryMessageRepository implements IMessageRepository {
     };
     this.messages.push(message);
     return message;
+  }
+
+  public async deleteById(messageId: string): Promise<void> {
+    const idx = this.messages.findIndex((m) => m.id === messageId);
+    if (idx >= 0) this.messages.splice(idx, 1);
   }
 }

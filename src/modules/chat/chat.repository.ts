@@ -13,11 +13,21 @@ export class ChatRepository implements IChatRepository {
 
   public async findByUser(userId: string, params: ListParams): Promise<Chat[]> {
     const rows = await this.prisma.client.chat.findMany({
-      // Soft-delete filter: hide tombstoned rows from the user-facing list.
-      where: { userId, deletedAt: null },
+      // Soft-delete + archive filter: hide tombstoned and archived rows.
+      where: { userId, deletedAt: null, archivedAt: null },
       take: params.limit + 1,
       ...(params.cursor ? { cursor: { id: params.cursor }, skip: 1 } : {}),
       orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+    });
+    return rows.map(toDomainChat);
+  }
+
+  public async findArchivedByUser(userId: string, params: ListParams): Promise<Chat[]> {
+    const rows = await this.prisma.client.chat.findMany({
+      where: { userId, deletedAt: null, archivedAt: { not: null } },
+      take: params.limit + 1,
+      ...(params.cursor ? { cursor: { id: params.cursor }, skip: 1 } : {}),
+      orderBy: [{ archivedAt: 'desc' }, { id: 'desc' }],
     });
     return rows.map(toDomainChat);
   }
@@ -49,6 +59,22 @@ export class ChatRepository implements IChatRepository {
     const result = await this.prisma.client.chat.updateMany({
       where: { id: chatId, userId, deletedAt: null },
       data: { deletedAt: new Date() },
+    });
+    return result.count > 0;
+  }
+
+  public async archive(chatId: string, userId: string): Promise<boolean> {
+    const result = await this.prisma.client.chat.updateMany({
+      where: { id: chatId, userId, deletedAt: null, archivedAt: null },
+      data: { archivedAt: new Date() },
+    });
+    return result.count > 0;
+  }
+
+  public async unarchive(chatId: string, userId: string): Promise<boolean> {
+    const result = await this.prisma.client.chat.updateMany({
+      where: { id: chatId, userId, deletedAt: null, archivedAt: { not: null } },
+      data: { archivedAt: null },
     });
     return result.count > 0;
   }

@@ -114,3 +114,49 @@ describe('ChatService.deleteChat', () => {
     ).rejects.toBeInstanceOf(NotFoundError);
   });
 });
+
+describe('ChatService archive', () => {
+  let chats: InMemoryChatRepository;
+  let flags: FeatureFlagService;
+  let service: ChatService;
+
+  beforeEach(() => {
+    chats = new InMemoryChatRepository();
+    flags = FeatureFlagService.getInstance();
+    flags.set('PAGINATION_LIMIT', 20);
+    service = new ChatService(chats, flags);
+  });
+
+  it('archives a chat and hides it from the active list', async () => {
+    const created = await chats.create({ userId: 'u', title: 'A' });
+    await service.archiveChat(created.id, 'u');
+    const list = await service.listChats({ userId: 'u' });
+    expect(list.data.some((c) => c.id === created.id)).toBe(false);
+  });
+
+  it('lists archived chats only', async () => {
+    const a = await chats.create({ userId: 'u', title: 'A' });
+    await chats.create({ userId: 'u', title: 'B' });
+    await service.archiveChat(a.id, 'u');
+    const archived = await service.listArchivedChats({ userId: 'u' });
+    expect(archived.data.map((c) => c.title)).toEqual(['A']);
+  });
+
+  it('unarchive restores a chat to the active list', async () => {
+    const created = await chats.create({ userId: 'u', title: 'A' });
+    await service.archiveChat(created.id, 'u');
+    await service.unarchiveChat(created.id, 'u');
+    const list = await service.listChats({ userId: 'u' });
+    expect(list.data.some((c) => c.id === created.id)).toBe(true);
+  });
+
+  it('throws NotFoundError when archiving a chat owned by someone else', async () => {
+    const created = await chats.create({ userId: 'owner', title: 'A' });
+    await expect(service.archiveChat(created.id, 'intruder')).rejects.toBeInstanceOf(NotFoundError);
+  });
+
+  it('throws NotFoundError when unarchiving a non-archived chat', async () => {
+    const created = await chats.create({ userId: 'u', title: 'A' });
+    await expect(service.unarchiveChat(created.id, 'u')).rejects.toBeInstanceOf(NotFoundError);
+  });
+});

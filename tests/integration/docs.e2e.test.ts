@@ -26,8 +26,11 @@ describe('OpenAPI documentation endpoints', () => {
       '/api/auth/me',
       '/api/auth/register',
       '/api/chats',
+      '/api/chats/archived',
+      '/api/chats/{chatId}/archive',
       '/api/chats/{chatId}/completion',
       '/api/chats/{chatId}/history',
+      '/api/chats/{chatId}/unarchive',
       '/healthz',
     ]);
 

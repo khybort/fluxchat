@@ -32,6 +32,15 @@ export const buildChatRouter = (
     controller.listChats,
   );
 
+  // Literal '/chats/archived' must be declared before any '/chats/:chatId/...'
+  // pattern so Express resolves it to listArchivedChats, not the param route.
+  router.get(
+    '/chats/archived',
+    validateRequest({ query: ListChatsQuerySchema }),
+    rateLimitPerRoute({ keyBy: 'user', store: rateLimitStore }),
+    controller.listArchivedChats,
+  );
+
   router.post(
     '/chats',
     validateRequest({ body: CreateChatBodySchema }),
@@ -54,6 +63,20 @@ export const buildChatRouter = (
   );
 
   router.post(
+    '/chats/:chatId/archive',
+    validateRequest({ params: ChatIdParamSchema }),
+    rateLimitPerRoute({ keyBy: 'user', store: rateLimitStore }),
+    controller.archiveChat,
+  );
+
+  router.post(
+    '/chats/:chatId/unarchive',
+    validateRequest({ params: ChatIdParamSchema }),
+    rateLimitPerRoute({ keyBy: 'user', store: rateLimitStore }),
+    controller.unarchiveChat,
+  );
+
+  router.post(
     '/chats/:chatId/completion',
     // Route-specific feature-flag guard (case §6 "Important Note"). When the
     // kill-switch flag is off, every client gets a 404 + FEATURE_DISABLED
@@ -64,6 +87,15 @@ export const buildChatRouter = (
     // share the completion quota — actual downstream consumer of req.clientType.
     rateLimitPerRoute({ keyBy: 'user+client', store: rateLimitStore }),
     controller.completion,
+  );
+
+  router.post(
+    '/chats/:chatId/regenerate',
+    // Same kill-switch as completion: regenerate is just another model call.
+    featureFlagGuard('COMPLETION_ENABLED'),
+    validateRequest({ params: ChatIdParamSchema }),
+    rateLimitPerRoute({ keyBy: 'user+client', store: rateLimitStore }),
+    controller.regenerate,
   );
 
   return router;

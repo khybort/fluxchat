@@ -39,4 +39,8 @@ export class MessageRepository implements IMessageRepository {
     });
     return toDomainMessage(row);
   }
+
+  public async deleteById(messageId: string): Promise<void> {
+    await this.prisma.client.message.delete({ where: { id: messageId } });
+  }
 }

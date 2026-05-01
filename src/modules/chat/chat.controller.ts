@@ -75,6 +75,47 @@ export class ChatController {
     }
   };
 
+  public archiveChat = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const user = requireUser(req);
+      const { chatId } = req.params as { chatId: string };
+      await this.chatService.archiveChat(chatId, user.id);
+      res.status(204).send();
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  public unarchiveChat = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const user = requireUser(req);
+      const { chatId } = req.params as { chatId: string };
+      await this.chatService.unarchiveChat(chatId, user.id);
+      res.status(204).send();
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  public listArchivedChats = async (
+    req: Request,
+    res: Response,
+    next: NextFunction,
+  ): Promise<void> => {
+    try {
+      const user = requireUser(req);
+      const query = req.query as ListChatsQuery;
+      const result = await this.chatService.listArchivedChats({
+        userId: user.id,
+        cursor: query.cursor,
+        limit: query.limit,
+      });
+      res.status(200).json(result);
+    } catch (error) {
+      next(error);
+    }
+  };
+
   public getHistory = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
       const user = requireUser(req);
@@ -90,6 +131,49 @@ export class ChatController {
       res.status(200).json(result);
     } catch (error) {
       next(error);
+    }
+  };
+
+  public regenerate = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    const controller = new AbortController();
+    const onAbort = (): void => controller.abort();
+    req.on('aborted', onAbort);
+
+    try {
+      const user = requireUser(req);
+      const params = req.params as unknown as ChatIdParams;
+      const result = await this.completionService.regenerate({
+        chatId: params.chatId,
+        userId: user.id,
+        signal: controller.signal,
+        flagCtx: flagContextFrom(req),
+      });
+
+      if (result.kind === 'json') {
+        res.status(200).json({
+          message: { role: 'assistant', content: result.text },
+          toolCalls: result.toolCalls,
+          ...(result.usage ? { usage: result.usage } : {}),
+        });
+        return;
+      }
+
+      const heartbeat = this.sse.openStream(res);
+      try {
+        for await (const event of result.events) {
+          if (controller.signal.aborted) break;
+          this.sse.write(res, event);
+        }
+      } catch (streamError) {
+        req.log.error({ err: streamError }, 'regenerate_stream_error');
+        this.sse.writeError(res, 'STREAM_ERROR', 'Stream interrupted');
+      } finally {
+        this.sse.end(res, heartbeat);
+      }
+    } catch (error) {
+      next(error);
+    } finally {
+      req.off('aborted', onAbort);
     }
   };
 

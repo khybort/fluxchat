@@ -8,6 +8,8 @@ export interface Chat {
   updatedAt: Date;
   /** Soft-delete tombstone — null for active chats. */
   deletedAt: Date | null;
+  /** Archive tombstone — null for unarchived chats. */
+  archivedAt: Date | null;
 }
 
 export interface MessageUsage {

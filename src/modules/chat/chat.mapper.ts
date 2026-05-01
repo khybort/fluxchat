@@ -9,6 +9,7 @@ export const toDomainChat = (row: PrismaChat): Chat => ({
   createdAt: row.createdAt,
   updatedAt: row.updatedAt,
   deletedAt: row.deletedAt,
+  archivedAt: row.archivedAt,
 });
 
 export const toDomainMessage = (row: PrismaMessage): Message => {

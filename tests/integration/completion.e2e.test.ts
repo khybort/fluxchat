@@ -142,6 +142,123 @@ describe('POST /api/chats/:chatId/completion', () => {
   });
 });
 
+describe('POST /api/chats/:chatId/regenerate', () => {
+  let h: TestAppHandles;
+
+  beforeEach(() => {
+    h = buildTestApp();
+  });
+
+  it('regenerates the assistant turn from the last user message and replaces the stale row', async () => {
+    h.flags.set('STREAMING_ENABLED', false);
+    const userId = 'user-1';
+    const chat = await h.chats.create({ userId, title: 't' });
+    await h.messages.create({ chatId: chat.id, role: 'user', content: 'hello' });
+    const stale = await h.messages.create({
+      chatId: chat.id,
+      role: 'assistant',
+      content: 'old answer',
+    });
+
+    const res = await request(h.app)
+      .post(`/api/chats/${chat.id}/regenerate`)
+      .set(h.authHeaders(userId))
+      .send({});
+
+    expect(res.status).toBe(200);
+    expect(res.body.message.role).toBe('assistant');
+
+    const persisted = await h.messages.findByChat(chat.id, { cursor: undefined, limit: 100 });
+    // No new user message — the original stays as the only user row.
+    expect(persisted.filter((m) => m.role === 'user')).toHaveLength(1);
+    // Stale assistant row replaced.
+    expect(persisted.some((m) => m.id === stale.id)).toBe(false);
+    expect(persisted.some((m) => m.role === 'assistant')).toBe(true);
+  });
+
+  it('returns 404 when the chat has no user messages to regenerate from', async () => {
+    h.flags.set('STREAMING_ENABLED', false);
+    const userId = 'user-1';
+    const chat = await h.chats.create({ userId, title: 't' });
+
+    const res = await request(h.app)
+      .post(`/api/chats/${chat.id}/regenerate`)
+      .set(h.authHeaders(userId))
+      .send({});
+
+    expect(res.status).toBe(422);
+    expect(res.body.error.code).toBe('NO_USER_MESSAGE');
+  });
+
+  it('returns 404 when the chat belongs to another user', async () => {
+    const owner = 'owner';
+    const intruder = 'intruder';
+    const chat = await h.chats.create({ userId: owner, title: 't' });
+
+    const res = await request(h.app)
+      .post(`/api/chats/${chat.id}/regenerate`)
+      .set(h.authHeaders(intruder))
+      .send({});
+
+    expect(res.status).toBe(404);
+  });
+});
+
+describe('Archive endpoints', () => {
+  let h: TestAppHandles;
+
+  beforeEach(() => {
+    h = buildTestApp();
+  });
+
+  it('archives a chat, hides it from /chats, and surfaces it in /chats/archived', async () => {
+    const userId = 'user-1';
+    const chat = await h.chats.create({ userId, title: 'A' });
+
+    const archive = await request(h.app)
+      .post(`/api/chats/${chat.id}/archive`)
+      .set(h.authHeaders(userId));
+    expect(archive.status).toBe(204);
+
+    const active = await request(h.app).get('/api/chats').set(h.authHeaders(userId));
+    expect(active.body.data.map((c: { id: string }) => c.id)).not.toContain(chat.id);
+
+    const archived = await request(h.app).get('/api/chats/archived').set(h.authHeaders(userId));
+    expect(archived.body.data.map((c: { id: string }) => c.id)).toContain(chat.id);
+  });
+
+  it('unarchive returns the chat to the active list', async () => {
+    const userId = 'user-1';
+    const chat = await h.chats.create({ userId, title: 'A' });
+
+    await request(h.app).post(`/api/chats/${chat.id}/archive`).set(h.authHeaders(userId));
+    const restore = await request(h.app)
+      .post(`/api/chats/${chat.id}/unarchive`)
+      .set(h.authHeaders(userId));
+    expect(restore.status).toBe(204);
+
+    const active = await request(h.app).get('/api/chats').set(h.authHeaders(userId));
+    expect(active.body.data.map((c: { id: string }) => c.id)).toContain(chat.id);
+  });
+
+  it('returns 404 when archiving a chat owned by another user', async () => {
+    const chat = await h.chats.create({ userId: 'owner', title: 'A' });
+    const res = await request(h.app)
+      .post(`/api/chats/${chat.id}/archive`)
+      .set(h.authHeaders('intruder'));
+    expect(res.status).toBe(404);
+  });
+
+  it('returns 404 when unarchiving a chat that is not archived', async () => {
+    const userId = 'user-1';
+    const chat = await h.chats.create({ userId, title: 'A' });
+    const res = await request(h.app)
+      .post(`/api/chats/${chat.id}/unarchive`)
+      .set(h.authHeaders(userId));
+    expect(res.status).toBe(404);
+  });
+});
+
 describe('GET /healthz', () => {
   it('returns flags snapshot without authentication', async () => {
     const h = buildTestApp();

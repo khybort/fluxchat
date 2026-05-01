@@ -44,20 +44,25 @@ model User {
 }
 
 model Chat {
-  id        String    @id @default(uuid())
-  title     String
-  userId    String
-  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  messages  Message[]
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
+  id         String    @id @default(uuid())
+  title      String
+  userId     String
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  messages   Message[]
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
   // Soft-delete tombstone. Repository hides rows where this is non-null so the
   // user sees them disappear, but the DB row + its messages are kept for
   // 30 days (cron-driven hard-delete out of scope) — recoverable + audit-safe.
-  deletedAt DateTime?
+  deletedAt  DateTime?
+  // Archive tombstone. Independent of deletedAt: an archived chat is still
+  // active (messages can be re-opened), it's just hidden from the main list
+  // and surfaced on the dedicated /chat/archived page.
+  archivedAt DateTime?
 
   @@index([userId, createdAt(sort: Desc)])
   @@index([userId, deletedAt, createdAt(sort: Desc)])
+  @@index([userId, archivedAt, createdAt(sort: Desc)])
   @@map("chats")
 }
 
