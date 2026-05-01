@@ -2,8 +2,8 @@ import type { ClientType } from '../constants.js';
 import type { UserRole } from '../types/express.js';
 
 /**
- * Type-safe feature flag registry. Adding a new flag is a single edit here
- * plus a default in Config.featureFlagDefaults — see CLAUDE.md §12.
+ * Type-safe feature flag registry. Adding a new flag is two edits:
+ * this interface, plus an entry in `flag-defaults.ts`. See CLAUDE.md §12.
  */
 export interface FeatureFlagSchema {
   STREAMING_ENABLED: boolean;

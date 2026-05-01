@@ -1,7 +1,12 @@
 import { Router } from 'express';
 
 import type { AdminController } from './admin.controller.js';
-import { EvaluateFlagBodySchema, FlagDefinitionSchema, FlagNameParamSchema } from './admin.dto.js';
+import {
+  EvaluateFlagBodySchema,
+  FlagDefinitionSchema,
+  FlagNameParamSchema,
+  ListUsersQuerySchema,
+} from './admin.dto.js';
 import { rateLimitPerRoute } from '../../shared/middleware/rate-limit.js';
 import { requireRole } from '../../shared/middleware/role.js';
 import { validateRequest } from '../../shared/middleware/validate-request.js';
@@ -58,6 +63,15 @@ export const buildAdminRouter = (
     validateRequest({ params: FlagNameParamSchema, body: EvaluateFlagBodySchema }),
     rateLimitPerRoute({ keyBy: 'user', store: rateLimitStore }),
     controller.evaluateFlag,
+  );
+
+  // User listing for the per-user flag-override picker. Cursor-paginated.
+  router.get(
+    '/users',
+    requireRole('admin'),
+    validateRequest({ query: ListUsersQuerySchema }),
+    rateLimitPerRoute({ keyBy: 'user', store: rateLimitStore }),
+    controller.listUsers,
   );
 
   return router;

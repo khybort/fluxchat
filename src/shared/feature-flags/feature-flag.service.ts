@@ -9,6 +9,7 @@ import type {
   FlagRule,
   FlagValue,
 } from './feature-flag.types.js';
+import { FLAG_DEFAULTS } from './flag-defaults.js';
 import { type IFlagOverrideStore, InMemoryFlagOverrideStore } from './override-store.js';
 import { Config } from '../../config/config.js';
 import { Logger } from '../../infrastructure/logger/logger.js';
@@ -19,11 +20,11 @@ type FlagDefinitions = Record<FlagName, FlagDefinition<FlagValue>>;
  * FeatureFlagService — singleton, hot-reloadable, context-aware.
  *
  * Sources, in priority order (CLAUDE.md §12):
- *   1. JSON file at FEATURE_FLAGS_FILE — accepts both bare primitives
+ *   1. DB overrides (admin UI) — merged in by {@link reload} after Prisma connects.
+ *   2. JSON file at FEATURE_FLAGS_FILE — accepts both bare primitives
  *      (`{ "X": true }`) and the rich `{ default, rules?, percentage? }` form.
- *   2. Environment variables parsed into Config.featureFlagDefaults — always
- *      bare primitives, wrapped as `{ default: v }` internally.
- *   3. Code defaults (the registry below).
+ *   3. Code defaults from {@link FLAG_DEFAULTS} — already in rich form, with
+ *      role-aware rules baked in.
  *
  * Evaluation order for `get(name, ctx?)`:
  *   1. Walk `rules` in declaration order; first matching rule wins.
@@ -43,17 +44,17 @@ export class FeatureFlagService {
   private readonly logger: Logger;
   private overrideStore: IFlagOverrideStore = new InMemoryFlagOverrideStore();
 
-  private constructor(config: Config, logger: Logger) {
+  private constructor(filePath: string | undefined, logger: Logger) {
     this.logger = logger;
-    this.defaults = wrapBareDefaults(config.values.featureFlagDefaults);
-    this.filePath = config.values.featureFlagsFile;
+    this.defaults = FLAG_DEFAULTS;
+    this.filePath = filePath;
     this.flags = this.loadStaticSources();
   }
 
   public static getInstance(): FeatureFlagService {
     if (!FeatureFlagService.instance) {
       FeatureFlagService.instance = new FeatureFlagService(
-        Config.getInstance(),
+        Config.getInstance().values.featureFlagsFile,
         Logger.getInstance(),
       );
     }
@@ -248,27 +249,7 @@ export class FeatureFlagService {
   }
 }
 
-const FLAG_NAMES: readonly FlagName[] = [
-  'STREAMING_ENABLED',
-  'PAGINATION_LIMIT',
-  'AI_TOOLS_ENABLED',
-  'CHAT_HISTORY_ENABLED',
-  'RATE_LIMIT_PER_MINUTE',
-  'COMPLETION_ENABLED',
-  'TOOL_CALCULATOR_ENABLED',
-  'TOOL_CURRENT_TIME_ENABLED',
-  'TOOL_CURRENT_WEATHER_ENABLED',
-  'TOOL_CONVERT_CURRENCY_ENABLED',
-  'TOOL_SEARCH_WEB_ENABLED',
-];
-
-const wrapBareDefaults = (bare: FeatureFlagSchema): FlagDefinitions => {
-  const out = {} as FlagDefinitions;
-  for (const key of FLAG_NAMES) {
-    (out as Record<FlagName, FlagDefinition<FlagValue>>)[key] = { default: bare[key] };
-  }
-  return out;
-};
+const FLAG_NAMES = Object.keys(FLAG_DEFAULTS) as readonly FlagName[];
 
 /**
  * Apply the per-flag bounds the original `coerce()` enforced. Returns null

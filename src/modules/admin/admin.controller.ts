@@ -1,9 +1,18 @@
 import type { NextFunction, Request, Response } from 'express';
 
-import type { EvaluateFlagBody, FlagDefinitionDto, FlagNameParam } from './admin.dto.js';
+import type {
+  EvaluateFlagBody,
+  FlagDefinitionDto,
+  FlagNameParam,
+  ListUsersQuery,
+} from './admin.dto.js';
 import { UnauthorizedError, ValidationError } from '../../shared/errors/app-error.js';
 import type { FeatureFlagService } from '../../shared/feature-flags/feature-flag.service.js';
 import type { FlagName } from '../../shared/feature-flags/feature-flag.types.js';
+import { buildPagedResult } from '../../shared/pagination/cursor.js';
+import type { IUserRepository } from '../user/user.repository.interface.js';
+
+const DEFAULT_USER_LIMIT = 20;
 
 /**
  * Role-gated controller for the admin flag UI. Lives next to the
@@ -12,7 +21,10 @@ import type { FlagName } from '../../shared/feature-flags/feature-flag.types.js'
  * (script/CI) caller.
  */
 export class AdminController {
-  constructor(private readonly flags: FeatureFlagService) {}
+  constructor(
+    private readonly flags: FeatureFlagService,
+    private readonly users: IUserRepository,
+  ) {}
 
   public listFlags = (req: Request, res: Response, next: NextFunction): void => {
     try {
@@ -87,6 +99,22 @@ export class AdminController {
       const body = req.body as EvaluateFlagBody;
       const value = this.flags.get(params.name as FlagName, body.context);
       res.status(200).json({ value });
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  /**
+   * Cursor-paginated user list — feeds the admin UI's per-user flag override
+   * picker. Admin-only; non-admins never reach the router (requireRole gate).
+   */
+  public listUsers = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      ensureAdmin(req);
+      const query = req.query as unknown as ListUsersQuery;
+      const limit = query.limit ?? DEFAULT_USER_LIMIT;
+      const rows = await this.users.findAll({ cursor: query.cursor, limit });
+      res.status(200).json(buildPagedResult(rows, limit, (r) => r.id));
     } catch (error) {
       next(error);
     }

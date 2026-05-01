@@ -28,19 +28,6 @@ export interface AppConfig {
   logging: {
     level: Env['LOG_LEVEL'];
   };
-  featureFlagDefaults: {
-    STREAMING_ENABLED: boolean;
-    PAGINATION_LIMIT: number;
-    AI_TOOLS_ENABLED: boolean;
-    CHAT_HISTORY_ENABLED: boolean;
-    RATE_LIMIT_PER_MINUTE: number;
-    COMPLETION_ENABLED: boolean;
-    TOOL_CALCULATOR_ENABLED: boolean;
-    TOOL_CURRENT_TIME_ENABLED: boolean;
-    TOOL_CURRENT_WEATHER_ENABLED: boolean;
-    TOOL_CONVERT_CURRENCY_ENABLED: boolean;
-    TOOL_SEARCH_WEB_ENABLED: boolean;
-  };
   featureFlagsFile: string | undefined;
 }
 
@@ -73,19 +60,6 @@ const buildConfig = (env: Env): AppConfig => ({
   },
   logging: {
     level: env.LOG_LEVEL,
-  },
-  featureFlagDefaults: {
-    STREAMING_ENABLED: env.STREAMING_ENABLED,
-    PAGINATION_LIMIT: env.PAGINATION_LIMIT,
-    AI_TOOLS_ENABLED: env.AI_TOOLS_ENABLED,
-    CHAT_HISTORY_ENABLED: env.CHAT_HISTORY_ENABLED,
-    RATE_LIMIT_PER_MINUTE: env.RATE_LIMIT_PER_MINUTE,
-    COMPLETION_ENABLED: env.COMPLETION_ENABLED,
-    TOOL_CALCULATOR_ENABLED: env.TOOL_CALCULATOR_ENABLED,
-    TOOL_CURRENT_TIME_ENABLED: env.TOOL_CURRENT_TIME_ENABLED,
-    TOOL_CURRENT_WEATHER_ENABLED: env.TOOL_CURRENT_WEATHER_ENABLED,
-    TOOL_CONVERT_CURRENCY_ENABLED: env.TOOL_CONVERT_CURRENCY_ENABLED,
-    TOOL_SEARCH_WEB_ENABLED: env.TOOL_SEARCH_WEB_ENABLED,
   },
   featureFlagsFile: env.FEATURE_FLAGS_FILE,
 });

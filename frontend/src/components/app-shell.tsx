@@ -6,6 +6,7 @@ import {
   PulseIcon,
   SignOutIcon,
   SparkleIcon,
+  UsersIcon,
   XIcon,
 } from '@phosphor-icons/react';
 import { useEffect, useState } from 'react';
@@ -153,6 +154,12 @@ export const AppShell = (): React.JSX.Element => {
                       <Link to="/admin/flags" className="cursor-pointer">
                         <FlagIcon className="h-4 w-4" weight="bold" />
                         Feature flags
+                      </Link>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem asChild>
+                      <Link to="/admin/users" className="cursor-pointer">
+                        <UsersIcon className="h-4 w-4" weight="bold" />
+                        Users
                       </Link>
                     </DropdownMenuItem>
                   </>

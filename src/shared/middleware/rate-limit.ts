@@ -1,6 +1,7 @@
 import type { Request, RequestHandler } from 'express';
 
 import { RateLimitError } from '../errors/app-error.js';
+import { flagContextFrom } from '../feature-flags/context.js';
 import { FeatureFlagService } from '../feature-flags/feature-flag.service.js';
 import type { IRateLimitStore } from '../rate-limit/rate-limit.types.js';
 
@@ -45,7 +46,11 @@ export const rateLimitPerRoute = (options: RateLimitMiddlewareOptions): RequestH
   const windowMs = options.windowMs ?? DEFAULT_WINDOW_MS;
 
   return (req, res, next) => {
-    const limit = options.limit ?? FeatureFlagService.getInstance().get('RATE_LIMIT_PER_MINUTE');
+    // Pass the request-scoped flag context so role-aware rules fire — admins
+    // get a higher ceiling than regular users via the rule in flag-defaults.ts.
+    const limit =
+      options.limit ??
+      FeatureFlagService.getInstance().get('RATE_LIMIT_PER_MINUTE', flagContextFrom(req));
     const key = buildKey(req, options.keyBy ?? 'user');
 
     options.store

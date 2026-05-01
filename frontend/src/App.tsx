@@ -6,6 +6,7 @@ import { ApiError } from '@/api/client';
 import { AppShell } from '@/components/app-shell';
 import { Toaster } from '@/components/ui/sonner';
 import { AdminFlagsPage } from '@/pages/admin-flags-page';
+import { AdminUsersPage } from '@/pages/admin-users-page';
 import { ChatPage } from '@/pages/chat-page';
 import { LoginPage } from '@/pages/auth/login-page';
 import { RegisterPage } from '@/pages/auth/register-page';
@@ -108,6 +109,14 @@ export const App = (): React.JSX.Element => (
           element={
             <AdminRoute>
               <AdminFlagsPage />
+            </AdminRoute>
+          }
+        />
+        <Route
+          path="/admin/users"
+          element={
+            <AdminRoute>
+              <AdminUsersPage />
             </AdminRoute>
           }
         />

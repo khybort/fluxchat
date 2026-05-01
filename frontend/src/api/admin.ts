@@ -1,10 +1,12 @@
 import { apiFetch } from './client';
 import type {
   AdminFlagsResponse,
+  AdminUser,
   FeatureFlagsSnapshot,
   FlagContext,
   FlagDefinition,
   FlagName,
+  PageResult,
 } from './types';
 
 /**
@@ -47,3 +49,14 @@ export const evaluateAdminFlag = (
     body: { context },
     token,
   });
+
+export const listAdminUsers = (
+  token: string,
+  params: { cursor?: string; limit?: number } = {},
+): Promise<PageResult<AdminUser>> => {
+  const qs = new URLSearchParams();
+  if (params.cursor) qs.set('cursor', params.cursor);
+  if (params.limit) qs.set('limit', String(params.limit));
+  const suffix = qs.toString() ? `?${qs.toString()}` : '';
+  return apiFetch<PageResult<AdminUser>>(`/api/admin/users${suffix}`, { token });
+};

@@ -12,16 +12,25 @@ describe('FeatureFlagService', () => {
     FeatureFlagService.resetForTesting();
   });
 
-  it('returns defaults from env when no override file is set', () => {
-    process.env.STREAMING_ENABLED = 'false';
-    process.env.PAGINATION_LIMIT = '15';
+  it('returns code defaults when no override file is set', () => {
     const service = FeatureFlagService.getInstance();
-    expect(service.get('STREAMING_ENABLED')).toBe(false);
-    expect(service.get('PAGINATION_LIMIT')).toBe(15);
+    // Defaults sourced from src/shared/feature-flags/flag-defaults.ts.
+    expect(service.get('STREAMING_ENABLED')).toBe(true);
+    expect(service.get('PAGINATION_LIMIT')).toBe(20);
+    expect(service.get('AI_TOOLS_ENABLED')).toBe(false);
   });
 
-  it('overrides env defaults with values from FEATURE_FLAGS_FILE', () => {
-    process.env.STREAMING_ENABLED = 'true';
+  it('role-aware defaults: admin gets the rule value, regular users get the default', () => {
+    const service = FeatureFlagService.getInstance();
+    // Customer / no-context → default false; admin → rule fires → true.
+    expect(service.get('AI_TOOLS_ENABLED')).toBe(false);
+    expect(service.get('AI_TOOLS_ENABLED', { userRole: 'user' })).toBe(false);
+    expect(service.get('AI_TOOLS_ENABLED', { userRole: 'admin' })).toBe(true);
+    expect(service.get('PAGINATION_LIMIT', { userRole: 'admin' })).toBe(100);
+    expect(service.get('RATE_LIMIT_PER_MINUTE', { userRole: 'admin' })).toBe(600);
+  });
+
+  it('overrides code defaults with values from FEATURE_FLAGS_FILE', () => {
     const filePath = join(tmpdir(), `flags-${Date.now()}.json`);
     writeFileSync(filePath, JSON.stringify({ STREAMING_ENABLED: false, PAGINATION_LIMIT: 50 }));
     process.env.FEATURE_FLAGS_FILE = filePath;
@@ -198,15 +207,14 @@ describe('FeatureFlagService — context-aware evaluation', () => {
     }
   });
 
-  it('invalid rich-form definition logs and falls back to env default', () => {
-    process.env.STREAMING_ENABLED = 'true';
+  it('invalid rich-form definition logs and falls back to code default', () => {
     // Boolean flag with a string default → invalid
     const filePath = writeFlags({
       STREAMING_ENABLED: { default: 'nope' },
     });
     try {
       const service = FeatureFlagService.getInstance();
-      expect(service.get('STREAMING_ENABLED')).toBe(true); // env default holds
+      expect(service.get('STREAMING_ENABLED')).toBe(true); // code default holds
     } finally {
       unlinkSync(filePath);
     }

@@ -5,6 +5,11 @@ const booleanFromString = z.union([z.boolean(), z.string()]).transform((value) =
   return ['true', '1', 'yes', 'on'].includes(value.toLowerCase());
 });
 
+/**
+ * Environment schema. Feature-flag *values* live in code
+ * (`src/shared/feature-flags/flag-defaults.ts`) and the DB (admin UI overrides),
+ * not here — env carries only secrets, connections, and infra toggles.
+ */
 export const EnvSchema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
   PORT: z.coerce.number().int().positive().default(3000),
@@ -35,25 +40,6 @@ export const EnvSchema = z.object({
   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace']).default('info'),
 
   CORS_ORIGINS: z.string().default(''),
-
-  STREAMING_ENABLED: booleanFromString.default(true),
-  PAGINATION_LIMIT: z.coerce.number().int().min(10).max(100).default(20),
-  AI_TOOLS_ENABLED: booleanFromString.default(false),
-  CHAT_HISTORY_ENABLED: booleanFromString.default(true),
-  RATE_LIMIT_PER_MINUTE: z.coerce.number().int().positive().default(60),
-  // Kill-switch for the POST /api/chats/:chatId/completion endpoint. Default
-  // true; flip to false + SIGHUP to disable AI completion globally without a
-  // redeploy. Enforced by featureFlagGuard middleware on the route.
-  COMPLETION_ENABLED: booleanFromString.default(true),
-
-  // Per-tool toggles. AI_TOOLS_ENABLED is the master switch; these are the
-  // granular per-tool subordinates. All default to true so adding a new
-  // tool to the catalog doesn't surprise existing deployments.
-  TOOL_CALCULATOR_ENABLED: booleanFromString.default(true),
-  TOOL_CURRENT_TIME_ENABLED: booleanFromString.default(true),
-  TOOL_CURRENT_WEATHER_ENABLED: booleanFromString.default(true),
-  TOOL_CONVERT_CURRENCY_ENABLED: booleanFromString.default(true),
-  TOOL_SEARCH_WEB_ENABLED: booleanFromString.default(true),
 
   // OpenAPI / Swagger documentation toggle. Default ON; flip to false in prod
   // (or front it with a reverse-proxy auth) if /docs should not be public.

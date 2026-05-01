@@ -202,7 +202,7 @@ export const buildContainer = (): AppContainer => {
   // Controllers + routers.
   const authController = new AuthController(authService);
   const chatController = new ChatController(chatService, completionService, historyService);
-  const adminController = new AdminController(flags);
+  const adminController = new AdminController(flags, userRepo);
   const chatRouter = buildChatRouter(chatController, rateLimit.store);
   const authRouters = buildAuthRouters(authController, rateLimit.store);
   const adminRouter = buildAdminRouter(adminController, rateLimit.store);

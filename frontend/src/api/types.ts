@@ -44,6 +44,15 @@ export interface AdminFlagsResponse {
   snapshot: FeatureFlagsSnapshot;
 }
 
+export interface AdminUser {
+  id: string;
+  email: string;
+  name: string | null;
+  role: UserRole;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface AuthResponse {
   token: string;
   user: AuthUser;

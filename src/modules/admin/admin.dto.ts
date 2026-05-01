@@ -58,6 +58,12 @@ export const EvaluateFlagBodySchema = z.object({
   context: FlagContextSchema,
 });
 
+export const ListUsersQuerySchema = z.object({
+  cursor: z.string().optional(),
+  limit: z.coerce.number().int().min(10).max(100).optional(),
+});
+
 export type FlagDefinitionDto = z.infer<typeof FlagDefinitionSchema>;
 export type FlagNameParam = z.infer<typeof FlagNameParamSchema>;
 export type EvaluateFlagBody = z.infer<typeof EvaluateFlagBodySchema>;
+export type ListUsersQuery = z.infer<typeof ListUsersQuerySchema>;

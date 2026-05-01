@@ -1,4 +1,8 @@
-import type { CreateUserInput, IUserRepository } from './user.repository.interface.js';
+import type {
+  CreateUserInput,
+  IUserRepository,
+  ListUsersParams,
+} from './user.repository.interface.js';
 import type { User, UserRole, UserWithCredentials } from './user.types.js';
 import type { PrismaService } from '../../infrastructure/database/prisma.service.js';
 
@@ -42,6 +46,15 @@ export class UserRepository implements IUserRepository {
   public async findCredentialsByEmail(email: string): Promise<UserWithCredentials | null> {
     const row = await this.prisma.client.user.findUnique({ where: { email } });
     return row ? toCredentials(row) : null;
+  }
+
+  public async findAll({ cursor, limit }: ListUsersParams): Promise<User[]> {
+    const rows = await this.prisma.client.user.findMany({
+      take: limit + 1,
+      ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
+      orderBy: { createdAt: 'desc' },
+    });
+    return rows.map(toDomainUser);
   }
 
   public async create(input: CreateUserInput): Promise<User> {

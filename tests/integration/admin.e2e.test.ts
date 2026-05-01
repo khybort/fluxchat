@@ -15,7 +15,7 @@ describe('POST /admin/flags/reload', () => {
 
     expect(res.status).toBe(200);
     expect(res.body.status).toBe('reloaded');
-    // After reload, the flag snapshot reflects the env-default (true), not the
+    // After reload, the flag snapshot reflects the code default (true), not the
     // in-memory override we just `set()` — proves the source-of-truth refresh.
     expect(res.body.flags.STREAMING_ENABLED).toBe(true);
   });

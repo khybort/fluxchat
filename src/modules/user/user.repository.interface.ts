@@ -6,6 +6,11 @@ export interface CreateUserInput {
   name?: string | null;
 }
 
+export interface ListUsersParams {
+  cursor: string | undefined;
+  limit: number;
+}
+
 export interface IUserRepository {
   findById(id: string): Promise<User | null>;
   findByEmail(email: string): Promise<User | null>;
@@ -14,5 +19,10 @@ export interface IUserRepository {
    * to verify a login. Never expose the credentials object outside auth.
    */
   findCredentialsByEmail(email: string): Promise<UserWithCredentials | null>;
+  /**
+   * Cursor-paginated user list, newest first. Over-fetches by 1 so the caller
+   * can detect `hasMore`. Used by the admin UI for per-user flag overrides.
+   */
+  findAll(params: ListUsersParams): Promise<User[]>;
   create(input: CreateUserInput): Promise<User>;
 }

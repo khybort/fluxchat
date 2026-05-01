@@ -77,7 +77,7 @@ export const buildTestApp = (
 
   const authController = new AuthController(authService);
   const chatController = new ChatController(chatService, completionService, historyService);
-  const adminController = new AdminController(flags);
+  const adminController = new AdminController(flags, users);
   const authRouters = buildAuthRouters(authController, rateLimitStore);
   const adminRouter = buildAdminRouter(adminController, rateLimitStore);
 
