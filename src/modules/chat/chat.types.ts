@@ -31,11 +31,4 @@ export interface ListParams {
   limit: number;
 }
 
-export interface PageResult<T> {
-  data: T[];
-  pagination: {
-    nextCursor: string | null;
-    hasMore: boolean;
-    limit: number;
-  };
-}
+export type { PageResult } from '../../shared/types/pagination.js';

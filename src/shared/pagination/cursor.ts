@@ -1,4 +1,4 @@
-import type { PageResult } from '../../modules/chat/chat.types.js';
+import type { PageResult } from '../types/pagination.js';
 
 /**
  * Build a `PageResult<T>` from an over-fetched array (size = limit + 1) and an id extractor.
