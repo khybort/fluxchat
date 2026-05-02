@@ -3,7 +3,7 @@ import { toast } from 'sonner';
 
 import { listAdminFlags, updateAdminFlag } from '@/api/admin';
 import { ApiError } from '@/api/client';
-import type { FeatureFlagsSnapshot, FlagDefinition, FlagName, FlagRule } from '@/api/types';
+import type { FlagDefinition, FlagName, FlagRule } from '@/api/types';
 import { useAuthStore } from '@/store/auth-store';
 import { useFlagsStore } from '@/store/flags-store';
 
@@ -68,7 +68,11 @@ export const useUserOverrides = ({
   onSaved,
 }: UseUserOverridesOptions): UseUserOverrides => {
   const token = useAuthStore((s) => s.token) ?? '';
-  const setFlags = useFlagsStore((s) => s.setFlags);
+  // Re-fetch the global flag store via /api/auth/me/flags after a save
+  // so the sidebar reflects per-user evaluated values. Pushing the
+  // admin endpoint's context-free `snapshot` here was incorrect — it
+  // would erase admin role rule effects from the current user's view.
+  const refreshGlobalFlags = useFlagsStore((s) => s.refresh);
 
   const [definitions, setDefinitions] = useState<Record<FlagName, FlagDefinition> | null>(null);
   const [overrides, setOverrides] = useState<Record<FlagName, OverrideRow> | null>(null);
@@ -125,14 +129,16 @@ export const useUserOverrides = ({
     if (!definitions || !overrides || dirtyFlags.length === 0) return;
     setSaving(true);
     try {
-      let latestSnapshot: FeatureFlagsSnapshot | null = null;
       for (const flag of dirtyFlags) {
         const row = overrides[flag];
         const next = applyOverride(definitions[flag], userId, row.enabled, row.value);
-        const res = await updateAdminFlag(token, flag, next);
-        latestSnapshot = res.snapshot;
+        await updateAdminFlag(token, flag, next);
       }
-      if (latestSnapshot) setFlags(latestSnapshot);
+      // Pull the per-user evaluated snapshot — admin's own role rules
+      // may interact with the override they just edited (e.g. they
+      // toggled a flag for someone else, but their own admin-rule
+      // value should still hold).
+      await refreshGlobalFlags();
       toast.success(
         `Updated ${dirtyFlags.length} override${dirtyFlags.length === 1 ? '' : 's'} for ${userEmail}`,
       );

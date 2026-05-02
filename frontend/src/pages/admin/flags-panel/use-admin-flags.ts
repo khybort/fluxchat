@@ -29,10 +29,14 @@ interface AdminFlagsState {
 
 export const useAdminFlags = (): AdminFlagsState => {
   const token = useAuthStore((s) => s.token) ?? '';
-  // Mirror every successful response into the global flags store so the
-  // sidebar's "Runtime feature flags" panel + chat page reflect edits
-  // immediately — no hard refresh, no /healthz round-trip needed.
-  const setFlags = useFlagsStore((s) => s.setFlags);
+  // After every admin write/read, re-fetch the GLOBAL flag store via
+  // /api/auth/me/flags so the sidebar's "Runtime feature flags" panel
+  // shows the **per-user evaluated** values — not the admin endpoint's
+  // context-free `snapshot`, which ignores rules and would for example
+  // show AI_TOOLS_ENABLED=OFF for an admin even though the baked-in
+  // userRole rule resolves it to ON for them. Refresh is in-flight
+  // de-duped so back-to-back admin actions don't fan out to N requests.
+  const refreshGlobalFlags = useFlagsStore((s) => s.refresh);
   const [data, setData] = useState<AdminFlagsResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [reloading, setReloading] = useState(false);
@@ -42,9 +46,9 @@ export const useAdminFlags = (): AdminFlagsState => {
     (response: AdminFlagsResponse) => {
       setData(response);
       setError(null);
-      setFlags(response.snapshot);
+      void refreshGlobalFlags();
     },
-    [setFlags],
+    [refreshGlobalFlags],
   );
 
   const refresh = useCallback(async () => {
