@@ -65,7 +65,12 @@ export const ListUsersQuerySchema = z.object({
   q: z.string().trim().min(1).max(100).optional(),
 });
 
+export const UserIdParamSchema = z.object({
+  userId: z.string().uuid(),
+});
+
 export type FlagDefinitionDto = z.infer<typeof FlagDefinitionSchema>;
 export type FlagNameParam = z.infer<typeof FlagNameParamSchema>;
 export type EvaluateFlagBody = z.infer<typeof EvaluateFlagBodySchema>;
 export type ListUsersQuery = z.infer<typeof ListUsersQuerySchema>;
+export type UserIdParam = z.infer<typeof UserIdParamSchema>;

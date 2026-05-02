@@ -67,3 +67,9 @@ export const listAdminUsers = (
   const suffix = qs.toString() ? `?${qs.toString()}` : '';
   return apiFetch<PageResult<AdminUser>>(`/api/admin/users${suffix}`, { token });
 };
+
+export const deleteAdminUser = (token: string, userId: string): Promise<{ deletedId: string }> =>
+  apiFetch<{ deletedId: string }>(`/api/admin/users/${encodeURIComponent(userId)}`, {
+    method: 'DELETE',
+    token,
+  });

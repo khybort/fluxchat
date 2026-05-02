@@ -332,3 +332,121 @@ describe('GET /api/admin/users', () => {
     expect(res.body.error.code).toBe('VALIDATION_ERROR');
   });
 });
+
+describe('DELETE /api/admin/users/:userId', () => {
+  const seed = async (
+    h: ReturnType<typeof buildTestApp>,
+    suffix: string,
+    role: 'user' | 'admin' = 'user',
+  ) => {
+    const u = await h.users.create({
+      email: `del-${suffix}@example.test`,
+      passwordHash: 'hash',
+      name: `Del ${suffix}`,
+    });
+    if (role === 'admin') {
+      const row = h.users.rows.find((r) => r.id === u.id);
+      if (row) row.role = 'admin';
+    }
+    return u;
+  };
+
+  it('hard-deletes a regular user for an admin caller', async () => {
+    const h = buildTestApp();
+    const target = await seed(h, 'a');
+    // Need a real admin row so the requesterId in the JWT matches an admin.
+    const admin = await seed(h, 'admin', 'admin');
+
+    const res = await request(h.app)
+      .delete(`/api/admin/users/${target.id}`)
+      .set(h.adminHeaders(admin.id));
+
+    expect(res.status).toBe(200);
+    expect(res.body.deletedId).toBe(target.id);
+    expect(h.users.rows.find((r) => r.id === target.id)).toBeUndefined();
+  });
+
+  it('refuses self-delete with 409 CONFLICT', async () => {
+    const h = buildTestApp();
+    const admin = await seed(h, 'admin', 'admin');
+
+    const res = await request(h.app)
+      .delete(`/api/admin/users/${admin.id}`)
+      .set(h.adminHeaders(admin.id));
+
+    expect(res.status).toBe(409);
+    expect(res.body.error.code).toBe('CONFLICT');
+    expect(h.users.rows.find((r) => r.id === admin.id)).toBeDefined();
+  });
+
+  it('refuses to delete the last admin with 409 CONFLICT', async () => {
+    const h = buildTestApp();
+    // Two admins seeded; demote one, then try to delete the only remaining admin
+    // from a non-admin (no, must be admin to call). Use a third admin requester.
+    const lastAdmin = await seed(h, 'last', 'admin');
+    const requester = await seed(h, 'requester', 'admin');
+    // Demote the requester to leave lastAdmin as the only admin, then re-promote
+    // the requester just so the JWT role check passes — countByRole sees only
+    // lastAdmin as admin at delete time.
+    // (Easier: seed one admin to be deleted, and the requester whose JWT role
+    // is 'admin' but whose row is 'user'. The use case's last-admin check
+    // counts by role, finds 1, refuses.)
+    const requesterRow = h.users.rows.find((r) => r.id === requester.id);
+    if (requesterRow) requesterRow.role = 'user';
+    // requireRole middleware reads from JWT, which still says admin.
+
+    const res = await request(h.app)
+      .delete(`/api/admin/users/${lastAdmin.id}`)
+      .set(h.adminHeaders(requester.id));
+
+    expect(res.status).toBe(409);
+    expect(res.body.error.code).toBe('CONFLICT');
+    expect(h.users.rows.find((r) => r.id === lastAdmin.id)).toBeDefined();
+  });
+
+  it('returns 404 when the target id does not exist', async () => {
+    const h = buildTestApp();
+    const admin = await seed(h, 'admin', 'admin');
+    const ghost = '00000000-0000-0000-0000-000000000000';
+
+    const res = await request(h.app)
+      .delete(`/api/admin/users/${ghost}`)
+      .set(h.adminHeaders(admin.id));
+
+    expect(res.status).toBe(404);
+    expect(res.body.error.code).toBe('NOT_FOUND');
+  });
+
+  it('returns 400 for a non-UUID id', async () => {
+    const h = buildTestApp();
+    const admin = await seed(h, 'admin', 'admin');
+
+    const res = await request(h.app)
+      .delete('/api/admin/users/not-a-uuid')
+      .set(h.adminHeaders(admin.id));
+
+    expect(res.status).toBe(400);
+    expect(res.body.error.code).toBe('VALIDATION_ERROR');
+  });
+
+  it('returns 403 for non-admin callers', async () => {
+    const h = buildTestApp();
+    const target = await seed(h, 't');
+
+    const res = await request(h.app)
+      .delete(`/api/admin/users/${target.id}`)
+      .set(h.authHeaders('regular-user'));
+
+    expect(res.status).toBe(403);
+    expect(h.users.rows.find((r) => r.id === target.id)).toBeDefined();
+  });
+
+  it('returns 401 for unauthenticated callers', async () => {
+    const h = buildTestApp();
+    const target = await seed(h, 't');
+
+    const res = await request(h.app).delete(`/api/admin/users/${target.id}`);
+
+    expect(res.status).toBe(401);
+  });
+});

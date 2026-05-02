@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useState } from 'react';
 import { toast } from 'sonner';
 
-import { listAdminUsers } from '@/api/admin';
+import { deleteAdminUser, listAdminUsers } from '@/api/admin';
 import { ApiError } from '@/api/client';
 import type { AdminUser } from '@/api/types';
 import { UserRoleBadge } from '@/components/admin/user-role-badge';
 import { Button } from '@/components/ui/button';
+import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { ErrorCard } from '@/components/ui/error-card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn, initialsOf } from '@/lib/utils';
@@ -18,12 +19,15 @@ const PAGE_SIZE = 20;
 
 export const UsersPanel = (): React.JSX.Element => {
   const token = useAuthStore((s) => s.token) ?? '';
+  const currentUser = useAuthStore((s) => s.user);
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [cursor, setCursor] = useState<string | null>(null);
   const [hasMore, setHasMore] = useState(false);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [editing, setEditing] = useState<AdminUser | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState<AdminUser | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const loadFirstPage = useCallback(async () => {
@@ -66,6 +70,21 @@ export const UsersPanel = (): React.JSX.Element => {
     }
   };
 
+  const handleDelete = async (user: AdminUser): Promise<void> => {
+    setDeletingId(user.id);
+    try {
+      await deleteAdminUser(token, user.id);
+      setUsers((prev) => prev.filter((u) => u.id !== user.id));
+      toast.success(`Deleted ${user.email}`);
+    } catch (err) {
+      const message = err instanceof ApiError ? err.message : 'Failed to delete user';
+      toast.error(message);
+    } finally {
+      setDeletingId(null);
+      setConfirmDelete(null);
+    }
+  };
+
   if (loading) return <UserListSkeleton />;
   if (error) {
     return (
@@ -84,7 +103,14 @@ export const UsersPanel = (): React.JSX.Element => {
     <>
       <ul className="space-y-2">
         {users.map((user) => (
-          <UserRow key={user.id} user={user} onEdit={() => setEditing(user)} />
+          <UserRow
+            key={user.id}
+            user={user}
+            isSelf={user.id === currentUser?.id}
+            isDeleting={deletingId === user.id}
+            onEdit={() => setEditing(user)}
+            onDelete={() => setConfirmDelete(user)}
+          />
         ))}
       </ul>
       {hasMore ? (
@@ -96,11 +122,38 @@ export const UsersPanel = (): React.JSX.Element => {
       ) : null}
 
       {editing ? <UserFlagOverridesDialog user={editing} onClose={() => setEditing(null)} /> : null}
+
+      <ConfirmDialog
+        open={confirmDelete !== null}
+        onOpenChange={(open) => !open && setConfirmDelete(null)}
+        title={`Delete ${confirmDelete?.email ?? 'this user'}?`}
+        description="This permanently removes the account, all of their chats, and every message. The action cannot be undone."
+        confirmLabel="Delete user"
+        tone="destructive"
+        icon="delete_forever"
+        onConfirm={async () => {
+          if (confirmDelete) await handleDelete(confirmDelete);
+        }}
+      />
     </>
   );
 };
 
-const UserRow = ({ user, onEdit }: { user: AdminUser; onEdit: () => void }): React.JSX.Element => (
+interface UserRowProps {
+  user: AdminUser;
+  isSelf: boolean;
+  isDeleting: boolean;
+  onEdit: () => void;
+  onDelete: () => void;
+}
+
+const UserRow = ({
+  user,
+  isSelf,
+  isDeleting,
+  onEdit,
+  onDelete,
+}: UserRowProps): React.JSX.Element => (
   <li className="flex items-center gap-3 rounded-lg border bg-card p-3 transition-colors hover:bg-accent/30">
     <div
       className={cn(
@@ -117,10 +170,26 @@ const UserRow = ({ user, onEdit }: { user: AdminUser; onEdit: () => void }): Rea
       </div>
       <p className="truncate text-xs text-muted-foreground">{user.email}</p>
     </div>
-    <Button size="sm" variant="outline" onClick={onEdit}>
-      <MaterialIcon name="tune" className="h-3.5 w-3.5" />
-      Override flags
-    </Button>
+    <div className="flex flex-none items-center gap-1.5">
+      <Button size="sm" variant="outline" onClick={onEdit} disabled={isDeleting}>
+        <MaterialIcon name="tune" className="h-3.5 w-3.5" />
+        Override flags
+      </Button>
+      <Button
+        size="sm"
+        variant="ghost"
+        onClick={onDelete}
+        disabled={isSelf || isDeleting}
+        className="text-error hover:bg-error/10 disabled:text-muted-foreground"
+        aria-label={isSelf ? 'You cannot delete yourself' : `Delete ${user.email}`}
+        title={isSelf ? "You can't delete your own account" : 'Delete user'}
+      >
+        <MaterialIcon
+          name={isDeleting ? 'progress_activity' : 'delete'}
+          className={cn('text-base', isDeleting && 'animate-spin')}
+        />
+      </Button>
+    </div>
   </li>
 );
 

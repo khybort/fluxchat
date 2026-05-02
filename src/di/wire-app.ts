@@ -8,6 +8,7 @@ import { buildAdminRouter } from '../modules/admin/adapters/http/admin.routes.js
 import type { AdminUseCases } from '../modules/admin/application/use-cases/admin.use-cases.js';
 import { ClearAllFeatureFlagsUseCase } from '../modules/admin/application/use-cases/clear-all-feature-flags.use-case.js';
 import { ClearFeatureFlagUseCase } from '../modules/admin/application/use-cases/clear-feature-flag.use-case.js';
+import { DeleteUserAdminUseCase } from '../modules/admin/application/use-cases/delete-user-admin.use-case.js';
 import { EvaluateFeatureFlagUseCase } from '../modules/admin/application/use-cases/evaluate-feature-flag.use-case.js';
 import { ListFeatureFlagsUseCase } from '../modules/admin/application/use-cases/list-feature-flags.use-case.js';
 import { ListUsersAdminUseCase } from '../modules/admin/application/use-cases/list-users-admin.use-case.js';
@@ -145,6 +146,7 @@ export const wireApp = (deps: AppDependencies): WiredApp => {
     reloadFlags: new ReloadFeatureFlagsUseCase(flags),
     evaluateFlag: new EvaluateFeatureFlagUseCase(flags),
     listUsers: new ListUsersAdminUseCase(repos.users),
+    deleteUser: new DeleteUserAdminUseCase(repos.users),
   };
 
   // Middleware bound to this deps' Config — eliminates implicit singleton

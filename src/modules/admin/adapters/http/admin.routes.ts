@@ -6,6 +6,7 @@ import {
   FlagDefinitionSchema,
   FlagNameParamSchema,
   ListUsersQuerySchema,
+  UserIdParamSchema,
 } from './admin.dto.js';
 import { asyncHandler } from '../../../../shared/middleware/async-handler.js';
 import type { RateLimiterFactory } from '../../../../shared/middleware/rate-limit.js';
@@ -83,6 +84,15 @@ export const buildAdminRouter = (
     validateRequest({ query: ListUsersQuerySchema }),
     rateLimiter.perRoute({ keyBy: 'user' }),
     asyncHandler(controller.listUsers),
+  );
+
+  // Hard-delete a user. Self-delete + last-admin guards live in the use case.
+  router.delete(
+    '/users/:userId',
+    requireRole('admin'),
+    validateRequest({ params: UserIdParamSchema }),
+    rateLimiter.perRoute({ keyBy: 'user' }),
+    asyncHandler(controller.deleteUser),
   );
 
   return router;

@@ -5,7 +5,11 @@ import type {
   IUserRepository,
   ListUsersParams,
 } from '../../src/modules/user/application/ports/user.repository.port.js';
-import type { User, UserWithCredentials } from '../../src/modules/user/domain/user.types.js';
+import type {
+  User,
+  UserRole,
+  UserWithCredentials,
+} from '../../src/modules/user/domain/user.types.js';
 
 type Row = UserWithCredentials;
 
@@ -61,5 +65,16 @@ export class InMemoryUserRepository implements IUserRepository {
     };
     this.rows.push(row);
     return row;
+  }
+
+  public async delete(id: string): Promise<boolean> {
+    const idx = this.rows.findIndex((r) => r.id === id);
+    if (idx === -1) return false;
+    this.rows.splice(idx, 1);
+    return true;
+  }
+
+  public async countByRole(role: UserRole): Promise<number> {
+    return this.rows.filter((r) => r.role === role).length;
   }
 }

@@ -5,6 +5,7 @@ import type {
   FlagDefinitionDto,
   FlagNameParam,
   ListUsersQuery,
+  UserIdParam,
 } from './admin.dto.js';
 import { ForbiddenError, UnauthorizedError } from '../../../../shared/errors/app-error.js';
 import type { FlagName } from '../../../../shared/feature-flags/feature-flag.types.js';
@@ -77,6 +78,16 @@ export class AdminController {
       cursor: query.cursor,
       limit: query.limit,
       q: query.q,
+    });
+    res.status(200).json(result);
+  };
+
+  public deleteUser = async (req: Request, res: Response): Promise<void> => {
+    const requester = ensureAdmin(req);
+    const params = req.params as unknown as UserIdParam;
+    const result = await this.useCases.deleteUser.execute({
+      targetId: params.userId,
+      requesterId: requester.id,
     });
     res.status(200).json(result);
   };

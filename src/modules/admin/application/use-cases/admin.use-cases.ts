@@ -1,4 +1,5 @@
 import type { ClearFeatureFlagInput } from './clear-feature-flag.use-case.js';
+import type { DeleteUserAdminInput, DeleteUserAdminOutput } from './delete-user-admin.use-case.js';
 import type {
   EvaluateFeatureFlagInput,
   EvaluateFeatureFlagOutput,
@@ -23,4 +24,5 @@ export interface AdminUseCases {
   reloadFlags: IUseCase<void, ReloadFeatureFlagsOutput>;
   evaluateFlag: IUseCase<EvaluateFeatureFlagInput, EvaluateFeatureFlagOutput>;
   listUsers: IUseCase<ListUsersAdminInput, PageResult<User>>;
+  deleteUser: IUseCase<DeleteUserAdminInput, DeleteUserAdminOutput>;
 }

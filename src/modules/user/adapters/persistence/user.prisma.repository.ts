@@ -76,4 +76,15 @@ export class UserPrismaRepository implements IUserRepository {
     });
     return toDomainUser(row);
   }
+
+  public async delete(id: string): Promise<boolean> {
+    // Chats + messages cascade via FK (`onDelete: Cascade` in schema.prisma);
+    // we don't have to touch them here.
+    const result = await this.prisma.client.user.deleteMany({ where: { id } });
+    return result.count > 0;
+  }
+
+  public async countByRole(role: UserRole): Promise<number> {
+    return this.prisma.client.user.count({ where: { role } });
+  }
 }
