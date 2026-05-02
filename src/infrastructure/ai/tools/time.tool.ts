@@ -75,4 +75,5 @@ export const timeTool: ToolDefinition<TimeArgs, TimeResult> = {
     const tz = cityToTz[hint.toLowerCase()];
     return tz ? { timezone: tz } : { timezone: hint };
   },
+  flag: { name: 'TOOL_CURRENT_TIME_ENABLED', default: true },
 };

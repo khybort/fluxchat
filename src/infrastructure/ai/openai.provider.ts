@@ -9,6 +9,7 @@ import type {
   ToolCall,
 } from './ai.types.js';
 import { toAiSdkTools } from './tools/registry.js';
+import type { ToolContext } from './tools/types.js';
 import type { Logger } from '../logger/logger.js';
 
 interface OpenAiProviderOptions {
@@ -36,10 +37,13 @@ export class OpenAiProvider implements IAiProvider {
   }
 
   public async complete(request: CompletionRequest): Promise<CompletionResultJson> {
+    // Non-streaming path has no client signal — fresh, never-aborted controller
+    // satisfies the ToolContext contract for any tool the SDK invokes.
+    const toolCtx = { logger: this.logger, signal: new AbortController().signal };
     const result = await generateText({
       model: this.modelRef,
       messages: this.buildMessages(request),
-      ...(request.toolsEnabled ? { tools: this.buildTools(request.enabledTools) } : {}),
+      ...(request.toolsEnabled ? { tools: this.buildTools(request.enabledTools, toolCtx) } : {}),
     });
 
     const toolCalls: ToolCall[] = (result.toolCalls ?? []).map((call, index) => {
@@ -70,11 +74,12 @@ export class OpenAiProvider implements IAiProvider {
   ): AsyncIterable<CompletionStreamEvent> {
     yield { type: 'thinking' };
 
+    const toolCtx = { logger: this.logger, signal };
     const result = streamText({
       model: this.modelRef,
       messages: this.buildMessages(request),
       abortSignal: signal,
-      ...(request.toolsEnabled ? { tools: this.buildTools(request.enabledTools) } : {}),
+      ...(request.toolsEnabled ? { tools: this.buildTools(request.enabledTools, toolCtx) } : {}),
     });
 
     let fullText = '';
@@ -110,7 +115,7 @@ export class OpenAiProvider implements IAiProvider {
           throw evt.error instanceof Error ? evt.error : new Error(String(evt.error));
         }
       }
-    } catch (error) {
+    } catch (error: unknown) {
       this.logger.pino.error({ err: error }, 'openai_stream_error');
       throw error;
     }
@@ -137,10 +142,11 @@ export class OpenAiProvider implements IAiProvider {
     ];
   }
 
-  private buildTools(enabledTools?: readonly string[]) {
+  private buildTools(enabledTools: readonly string[] | undefined, ctx: ToolContext) {
     // Sourced from src/infrastructure/ai/tools/registry.ts — adding a tool
     // there exposes it to every provider with no per-provider edit. Per-tool
-    // flag gating is applied here.
-    return toAiSdkTools(enabledTools);
+    // flag gating is applied here. ctx threads the request-scoped logger +
+    // signal through to the tool's `execute` function.
+    return toAiSdkTools(enabledTools, ctx);
   }
 }

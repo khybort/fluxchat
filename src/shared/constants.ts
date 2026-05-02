@@ -29,3 +29,33 @@ export const HEADERS = {
 /** Supported client types for the clientType middleware. */
 export const CLIENT_TYPES = ['web', 'mobile', 'desktop'] as const;
 export type ClientType = (typeof CLIENT_TYPES)[number];
+
+/** Authentication-related business constants. */
+export const AUTH = {
+  PASSWORD_MIN_LENGTH: 8,
+  PASSWORD_MAX_LENGTH: 100,
+  NAME_MAX_LENGTH: 100,
+  EMAIL_MAX_LENGTH: 254,
+  TOKEN_TTL_SECONDS: 60 * 60 * 24 * 30,
+  BCRYPT_ROUNDS: 12,
+  RATE_LIMIT_PER_MINUTE: 10,
+} as const;
+
+/** AI completion knobs. Model names live in Config (env-driven). */
+export const AI = {
+  MAX_TOOL_ITERATIONS: 5,
+  DEFAULT_MAX_TOKENS: 4096,
+} as const;
+
+/** AI tool execution limits. */
+export const TOOLS = {
+  MAX_WEB_SEARCH_RESULTS: 10,
+  MAX_SEARCH_QUERY_LENGTH: 200,
+  WEB_SEARCH_TIMEOUT_MS: 5000,
+} as const;
+
+/** In-memory rate limiter eviction parameters. */
+export const RATE_LIMIT = {
+  STALE_FACTOR: 4,
+  MAX_BUCKETS: 10_000,
+} as const;

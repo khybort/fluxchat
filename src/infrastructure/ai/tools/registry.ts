@@ -5,16 +5,22 @@ import { calculatorTool } from './calculator.tool.js';
 import { currencyTool } from './currency.tool.js';
 import { searchWebTool } from './search-web.tool.js';
 import { timeTool } from './time.tool.js';
-import type { AnyToolDefinition } from './types.js';
+import type { AnyToolDefinition, ToolContext, ToolFlagSpec } from './types.js';
 import { weatherTool } from './weather.tool.js';
+import type {
+  FlagDefinition,
+  ToolFlagName,
+} from '../../../shared/feature-flags/feature-flag.types.js';
 
 /**
  * Single source of truth for the tools the AI is allowed to call.
  *
- * Adding a new tool is a two-line edit: write `<name>.tool.ts` exporting a
- * `ToolDefinition`, then append it to the array below. Every provider
- * (Anthropic, OpenAI, Groq, Mock) reads from this list — no per-provider
- * hand-coding.
+ * Adding a new tool is a two-file edit: write `<name>.tool.ts` exporting a
+ * `ToolDefinition` (including its `flag` spec), then append it to the array
+ * below. Every provider (Anthropic, OpenAI, Groq, Mock) reads from this list
+ * — no per-provider hand-coding. The flag map and defaults below are derived
+ * from each tool's own `flag` spec, so flag-defaults.ts and feature-flag.types.ts
+ * never need editing for a new tool.
  */
 // Cast each entry to `AnyToolDefinition` because TypeScript treats the
 // `execute(args)` parameter as contravariant — a tool typed for its specific
@@ -41,20 +47,26 @@ const filterByEnabled = (enabled: readonly string[] | undefined): AnyToolDefinit
 };
 
 /**
- * Maps each tool name to the FeatureFlagSchema key that gates it. Strategies
- * use this to compute the enabled-tools list at request time without hard-
- * coding flag names per provider — adding a new tool means adding ONE entry
- * here plus the flag in feature-flag.types.ts.
+ * Tool name → gate flag name. Derived from each tool's `flag.name`, so a new
+ * tool plugs in without touching this file's body — only the ALL_TOOLS list
+ * above grows by one entry.
  */
-export const TOOL_GATE_FLAGS = {
-  calculator: 'TOOL_CALCULATOR_ENABLED',
-  getCurrentTime: 'TOOL_CURRENT_TIME_ENABLED',
-  getCurrentWeather: 'TOOL_CURRENT_WEATHER_ENABLED',
-  convertCurrency: 'TOOL_CONVERT_CURRENCY_ENABLED',
-  searchWeb: 'TOOL_SEARCH_WEB_ENABLED',
-} as const;
+export const TOOL_GATE_FLAGS: Record<string, ToolFlagName> = Object.fromEntries(
+  ALL_TOOLS.map((t) => [t.name, (t.flag as ToolFlagSpec).name]),
+);
 
-export type ToolGateFlagName = (typeof TOOL_GATE_FLAGS)[keyof typeof TOOL_GATE_FLAGS];
+/**
+ * Tool flag name → flag definition (default value). Spread into `FLAG_DEFAULTS`
+ * so the feature-flag service learns about every tool's flag without a
+ * separate hardcoded list. Keeps the tool catalog and the flag catalog in sync
+ * by construction.
+ */
+export const TOOL_FLAG_DEFAULTS: Record<ToolFlagName, FlagDefinition<boolean>> = Object.fromEntries(
+  ALL_TOOLS.map((t) => {
+    const spec = t.flag as ToolFlagSpec;
+    return [spec.name, { default: spec.default }];
+  }),
+) as Record<ToolFlagName, FlagDefinition<boolean>>;
 
 /** Lookup by name. Returns undefined for unknown tools. */
 export const findTool = (name: string): AnyToolDefinition | undefined =>
@@ -65,8 +77,16 @@ export const findTool = (name: string): AnyToolDefinition | undefined =>
  * malformed inputs are rejected before the implementation runs. Errors are
  * caught and returned as a structured `{ error }` payload — the LLM can read
  * that and apologise to the user instead of the whole stream blowing up.
+ *
+ * `ctx` carries the request-scoped logger + abort signal so tools log into
+ * the right correlation chain and can cancel in-flight side effects when
+ * the client disconnects.
  */
-export const executeTool = async (name: string, rawArgs: unknown): Promise<unknown> => {
+export const executeTool = async (
+  name: string,
+  rawArgs: unknown,
+  ctx: ToolContext,
+): Promise<unknown> => {
   const def = findTool(name);
   if (!def) {
     return { error: `unknown_tool: ${name}` };
@@ -76,8 +96,8 @@ export const executeTool = async (name: string, rawArgs: unknown): Promise<unkno
     return { error: 'invalid_arguments', details: parsed.error.issues };
   }
   try {
-    return await def.execute(parsed.data);
-  } catch (err) {
+    return await def.execute(parsed.data, ctx);
+  } catch (err: unknown) {
     return { error: err instanceof Error ? err.message : 'tool_execution_failed' };
   }
 };
@@ -132,15 +152,17 @@ export const toAnthropicTools = (
 /**
  * Vercel AI SDK shape: a `Record<name, ai.tool(...)>`. Used by Groq +
  * OpenAI providers (which both speak the OpenAI-compatible Vercel AI SDK
- * tool protocol).
+ * tool protocol). The `ctx` is closed over per-translation so the SDK's
+ * `execute` callback (which doesn't carry our context) still gets the
+ * right logger + signal.
  */
-export const toAiSdkTools = (enabled?: readonly string[]): ToolSet => {
+export const toAiSdkTools = (enabled: readonly string[] | undefined, ctx: ToolContext): ToolSet => {
   const out: ToolSet = {};
   for (const t of filterByEnabled(enabled)) {
     out[t.name] = tool({
       description: t.description,
       parameters: t.parameters,
-      execute: async (args: unknown) => executeTool(t.name, args),
+      execute: async (args: unknown) => executeTool(t.name, args, ctx),
     });
   }
   return out;
@@ -154,12 +176,13 @@ export const toAiSdkTools = (enabled?: readonly string[]): ToolSet => {
  */
 export const detectToolIntent = async (
   prompt: string,
-  enabled?: readonly string[],
+  enabled: readonly string[] | undefined,
+  ctx: ToolContext,
 ): Promise<{ name: string; args: unknown; result: unknown } | null> => {
   for (const t of filterByEnabled(enabled)) {
     const args = t.detectIntent?.(prompt);
     if (args == null) continue;
-    const result = await executeTool(t.name, args);
+    const result = await executeTool(t.name, args, ctx);
     return { name: t.name, args: args as unknown, result };
   }
   return null;

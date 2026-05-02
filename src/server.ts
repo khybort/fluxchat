@@ -29,25 +29,25 @@ const main = async (): Promise<void> => {
     logger.pino.info({ port: config.values.app.port }, 'server_listening');
   });
 
-  const shutdown = async (signal: string): Promise<void> => {
-    logger.pino.info({ signal }, 'shutdown_started');
+  const shutdown = async (signal: string, exitCode = 0): Promise<void> => {
+    logger.pino.info({ signal, exitCode }, 'shutdown_started');
     server.close(() => {
       logger.pino.info('http_server_closed');
     });
     try {
       await container.shutdown();
       logger.pino.info('container_resources_released');
-    } catch (error) {
+    } catch (error: unknown) {
       logger.pino.error({ err: error }, 'shutdown_container_failed');
     }
     try {
       await prisma.disconnect();
       logger.pino.info('database_disconnected');
-    } catch (error) {
+    } catch (error: unknown) {
       logger.pino.error({ err: error }, 'shutdown_disconnect_failed');
     }
     await logger.flush();
-    process.exit(0);
+    process.exit(exitCode);
   };
 
   process.on('SIGTERM', () => {
@@ -64,11 +64,10 @@ const main = async (): Promise<void> => {
   });
   process.on('uncaughtException', (error) => {
     logger.pino.fatal({ err: error }, 'uncaught_exception');
-    process.exit(1);
+    void shutdown('uncaughtException', 1);
   });
   process.on('unhandledRejection', (reason) => {
     logger.pino.fatal({ reason }, 'unhandled_rejection');
-    process.exit(1);
   });
 };
 

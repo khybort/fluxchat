@@ -8,10 +8,10 @@ import {
   HistoryQuerySchema,
   ListChatsQuerySchema,
 } from './chat.dto.js';
+import { asyncHandler } from '../../shared/middleware/async-handler.js';
 import { featureFlagGuard } from '../../shared/middleware/feature-flag-guard.js';
-import { rateLimitPerRoute } from '../../shared/middleware/rate-limit.js';
+import type { RateLimiterFactory } from '../../shared/middleware/rate-limit.js';
 import { validateRequest } from '../../shared/middleware/validate-request.js';
-import type { IRateLimitStore } from '../../shared/rate-limit/rate-limit.types.js';
 
 /**
  * Routes are pure wiring (CLAUDE.md §11): global middleware lives in app.ts,
@@ -21,15 +21,15 @@ import type { IRateLimitStore } from '../../shared/rate-limit/rate-limit.types.j
  */
 export const buildChatRouter = (
   controller: ChatController,
-  rateLimitStore: IRateLimitStore,
+  rateLimiter: RateLimiterFactory,
 ): Router => {
   const router = Router();
 
   router.get(
     '/chats',
     validateRequest({ query: ListChatsQuerySchema }),
-    rateLimitPerRoute({ keyBy: 'user', store: rateLimitStore }),
-    controller.listChats,
+    rateLimiter.perRoute({ keyBy: 'user' }),
+    asyncHandler(controller.listChats),
   );
 
   // Literal '/chats/archived' must be declared before any '/chats/:chatId/...'
@@ -37,43 +37,43 @@ export const buildChatRouter = (
   router.get(
     '/chats/archived',
     validateRequest({ query: ListChatsQuerySchema }),
-    rateLimitPerRoute({ keyBy: 'user', store: rateLimitStore }),
-    controller.listArchivedChats,
+    rateLimiter.perRoute({ keyBy: 'user' }),
+    asyncHandler(controller.listArchivedChats),
   );
 
   router.post(
     '/chats',
     validateRequest({ body: CreateChatBodySchema }),
-    rateLimitPerRoute({ keyBy: 'user', store: rateLimitStore }),
-    controller.createChat,
+    rateLimiter.perRoute({ keyBy: 'user' }),
+    asyncHandler(controller.createChat),
   );
 
   router.get(
     '/chats/:chatId/history',
     validateRequest({ params: ChatIdParamSchema, query: HistoryQuerySchema }),
-    rateLimitPerRoute({ keyBy: 'user', store: rateLimitStore }),
-    controller.getHistory,
+    rateLimiter.perRoute({ keyBy: 'user' }),
+    asyncHandler(controller.getHistory),
   );
 
   router.delete(
     '/chats/:chatId',
     validateRequest({ params: ChatIdParamSchema }),
-    rateLimitPerRoute({ keyBy: 'user', store: rateLimitStore }),
-    controller.deleteChat,
+    rateLimiter.perRoute({ keyBy: 'user' }),
+    asyncHandler(controller.deleteChat),
   );
 
   router.post(
     '/chats/:chatId/archive',
     validateRequest({ params: ChatIdParamSchema }),
-    rateLimitPerRoute({ keyBy: 'user', store: rateLimitStore }),
-    controller.archiveChat,
+    rateLimiter.perRoute({ keyBy: 'user' }),
+    asyncHandler(controller.archiveChat),
   );
 
   router.post(
     '/chats/:chatId/unarchive',
     validateRequest({ params: ChatIdParamSchema }),
-    rateLimitPerRoute({ keyBy: 'user', store: rateLimitStore }),
-    controller.unarchiveChat,
+    rateLimiter.perRoute({ keyBy: 'user' }),
+    asyncHandler(controller.unarchiveChat),
   );
 
   router.post(
@@ -85,8 +85,8 @@ export const buildChatRouter = (
     validateRequest({ params: ChatIdParamSchema, body: CompletionBodySchema }),
     // Per-(user, client) bucket so a user's mobile and web sessions don't
     // share the completion quota — actual downstream consumer of req.clientType.
-    rateLimitPerRoute({ keyBy: 'user+client', store: rateLimitStore }),
-    controller.completion,
+    rateLimiter.perRoute({ keyBy: 'user+client' }),
+    asyncHandler(controller.completion),
   );
 
   router.post(
@@ -94,8 +94,8 @@ export const buildChatRouter = (
     // Same kill-switch as completion: regenerate is just another model call.
     featureFlagGuard('COMPLETION_ENABLED'),
     validateRequest({ params: ChatIdParamSchema }),
-    rateLimitPerRoute({ keyBy: 'user+client', store: rateLimitStore }),
-    controller.regenerate,
+    rateLimiter.perRoute({ keyBy: 'user+client' }),
+    asyncHandler(controller.regenerate),
   );
 
   return router;

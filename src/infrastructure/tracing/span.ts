@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 
-import { Logger } from '../logger/logger.js';
+import type { Logger } from '../logger/logger.js';
 
 /**
  * Lightweight tracing scaffold. Today every span emits a structured `span` log
@@ -28,9 +28,14 @@ export const createSpan = (name: string, parentTraceId?: string): SpanContext =>
   startedAt: process.hrtime.bigint(),
 });
 
-export const finishSpan = (span: SpanContext, outcome: 'ok' | 'error', error?: unknown): void => {
+export const finishSpan = (
+  span: SpanContext,
+  outcome: 'ok' | 'error',
+  logger: Logger,
+  error?: unknown,
+): void => {
   const durationMs = Number(process.hrtime.bigint() - span.startedAt) / 1_000_000;
-  Logger.getInstance().pino.info(
+  logger.pino.info(
     {
       traceId: span.traceId,
       spanId: span.spanId,
@@ -47,19 +52,24 @@ export const finishSpan = (span: SpanContext, outcome: 'ok' | 'error', error?: u
  * Wrap an async operation in a span. Always logs once with the outcome — `ok`
  * if the promise resolves, `error` (with the error name + message) otherwise.
  * The thrown error propagates unchanged so call sites don't need to rewrap.
+ *
+ * The logger is injected (not pulled from the Logger singleton) so spans land
+ * in the same correlation chain as the surrounding request — DI from the
+ * caller's `this.logger`, not a global lookup.
  */
 export const withSpan = async <T>(
   name: string,
   fn: (span: SpanContext) => Promise<T>,
+  logger: Logger,
   parentTraceId?: string,
 ): Promise<T> => {
   const span = createSpan(name, parentTraceId);
   try {
     const result = await fn(span);
-    finishSpan(span, 'ok');
+    finishSpan(span, 'ok', logger);
     return result;
-  } catch (error) {
-    finishSpan(span, 'error', error);
+  } catch (error: unknown) {
+    finishSpan(span, 'error', logger, error);
     throw error;
   }
 };

@@ -1,11 +1,11 @@
-import { Router } from 'express';
+import { Router, type RequestHandler } from 'express';
 
 import type { AuthController } from './auth.controller.js';
 import { LoginBodySchema, RegisterBodySchema } from './auth.dto.js';
-import { authMiddleware } from '../../shared/middleware/auth.js';
-import { rateLimitPerRoute } from '../../shared/middleware/rate-limit.js';
+import { AUTH } from '../../shared/constants.js';
+import { asyncHandler } from '../../shared/middleware/async-handler.js';
+import type { RateLimiterFactory } from '../../shared/middleware/rate-limit.js';
 import { validateRequest } from '../../shared/middleware/validate-request.js';
-import type { IRateLimitStore } from '../../shared/rate-limit/rate-limit.types.js';
 
 /**
  * Builds two routers:
@@ -13,26 +13,29 @@ import type { IRateLimitStore } from '../../shared/rate-limit/rate-limit.types.j
  *     can't require a JWT they don't have yet). App-check + clientType still apply.
  *   - `protectedRouter` is mounted AFTER `authMiddleware` for endpoints like /me.
  *
- * Both apply per-route rate limiting via the injected store.
+ * Both apply per-route rate limiting via the injected limiter factory. The
+ * `authMiddleware` handler is also injected so this builder doesn't have to
+ * import `Config` itself — DI keeps the dependency direction clean.
  */
 export const buildAuthRouters = (
   controller: AuthController,
-  rateLimitStore: IRateLimitStore,
+  rateLimiter: RateLimiterFactory,
+  authMiddleware: RequestHandler,
 ): { publicRouter: Router; protectedRouter: Router } => {
   const publicRouter = Router();
 
   publicRouter.post(
     '/register',
     validateRequest({ body: RegisterBodySchema }),
-    rateLimitPerRoute({ keyBy: 'ip', store: rateLimitStore, limit: 10 }),
-    controller.register,
+    rateLimiter.perRoute({ keyBy: 'ip', limit: AUTH.RATE_LIMIT_PER_MINUTE }),
+    asyncHandler(controller.register),
   );
 
   publicRouter.post(
     '/login',
     validateRequest({ body: LoginBodySchema }),
-    rateLimitPerRoute({ keyBy: 'ip', store: rateLimitStore, limit: 10 }),
-    controller.login,
+    rateLimiter.perRoute({ keyBy: 'ip', limit: AUTH.RATE_LIMIT_PER_MINUTE }),
+    asyncHandler(controller.login),
   );
 
   const protectedRouter = Router();
@@ -43,8 +46,8 @@ export const buildAuthRouters = (
   protectedRouter.get(
     '/me',
     authMiddleware,
-    rateLimitPerRoute({ keyBy: 'user', store: rateLimitStore }),
-    controller.me,
+    rateLimiter.perRoute({ keyBy: 'user' }),
+    asyncHandler(controller.me),
   );
 
   return { publicRouter, protectedRouter };

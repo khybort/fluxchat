@@ -1,4 +1,5 @@
-import type { FlagDefinition, FlagName, FlagValue } from './feature-flag.types.js';
+import type { CoreFlagSchema, FlagDefinition, FlagName, FlagValue } from './feature-flag.types.js';
+import { TOOL_FLAG_DEFAULTS } from '../../infrastructure/ai/tools/registry.js';
 
 /**
  * Code-level defaults — the bottom of the source-priority chain
@@ -11,10 +12,12 @@ import type { FlagDefinition, FlagName, FlagValue } from './feature-flag.types.j
  * still override per-user via the admin UI (which appends/edits entries
  * in `rules`).
  *
- * Adding a new flag is two edits: the FeatureFlagSchema interface and
- * one entry here. No env-var wiring needed.
+ * Adding a new core (non-tool) flag is two edits: the {@link CoreFlagSchema}
+ * interface and one entry below. Tool flags are derived from each tool's
+ * own `flag` spec (see `infrastructure/ai/tools/registry.ts`) — they do not
+ * appear here.
  */
-export const FLAG_DEFAULTS: Record<FlagName, FlagDefinition<FlagValue>> = {
+const CORE_FLAG_DEFAULTS: { [K in keyof CoreFlagSchema]: FlagDefinition<CoreFlagSchema[K]> } = {
   STREAMING_ENABLED: { default: true },
 
   PAGINATION_LIMIT: {
@@ -35,10 +38,9 @@ export const FLAG_DEFAULTS: Record<FlagName, FlagDefinition<FlagValue>> = {
   },
 
   COMPLETION_ENABLED: { default: true },
-
-  TOOL_CALCULATOR_ENABLED: { default: true },
-  TOOL_CURRENT_TIME_ENABLED: { default: true },
-  TOOL_CURRENT_WEATHER_ENABLED: { default: true },
-  TOOL_CONVERT_CURRENCY_ENABLED: { default: true },
-  TOOL_SEARCH_WEB_ENABLED: { default: true },
 };
+
+export const FLAG_DEFAULTS: Record<FlagName, FlagDefinition<FlagValue>> = {
+  ...CORE_FLAG_DEFAULTS,
+  ...TOOL_FLAG_DEFAULTS,
+} as Record<FlagName, FlagDefinition<FlagValue>>;

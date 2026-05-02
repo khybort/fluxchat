@@ -4,6 +4,7 @@ import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 
 import type { Config } from '../../config/config.js';
+import { AUTH } from '../../shared/constants.js';
 import { ConflictError, UnauthorizedError } from '../../shared/errors/app-error.js';
 import type { IUserRepository } from '../user/user.repository.interface.js';
 import type { User } from '../user/user.types.js';
@@ -32,9 +33,6 @@ export interface LoginInput {
   password: string;
 }
 
-const TOKEN_TTL_SECONDS = 60 * 60 * 24 * 30;
-const BCRYPT_ROUNDS = 12;
-
 const toView = (user: User): AuthUserView => ({
   id: user.id,
   email: user.email,
@@ -61,7 +59,7 @@ export class AuthService {
       throw new ConflictError('Email already registered');
     }
 
-    const passwordHash = await bcrypt.hash(input.password, BCRYPT_ROUNDS);
+    const passwordHash = await bcrypt.hash(input.password, AUTH.BCRYPT_ROUNDS);
     const user = await this.users.create({
       email,
       passwordHash,
@@ -106,12 +104,12 @@ export class AuthService {
     const token = jwt.sign(
       { sub: user.id, email: user.email, role: user.role },
       this.config.values.auth.jwtSecret,
-      { expiresIn: TOKEN_TTL_SECONDS },
+      { expiresIn: AUTH.TOKEN_TTL_SECONDS },
     );
     return {
       token,
       user: toView(user),
-      expiresInSeconds: TOKEN_TTL_SECONDS,
+      expiresInSeconds: AUTH.TOKEN_TTL_SECONDS,
     };
   }
 }

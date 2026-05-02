@@ -7,10 +7,10 @@ import {
   FlagNameParamSchema,
   ListUsersQuerySchema,
 } from './admin.dto.js';
-import { rateLimitPerRoute } from '../../shared/middleware/rate-limit.js';
+import { asyncHandler } from '../../shared/middleware/async-handler.js';
+import type { RateLimiterFactory } from '../../shared/middleware/rate-limit.js';
 import { requireRole } from '../../shared/middleware/role.js';
 import { validateRequest } from '../../shared/middleware/validate-request.js';
-import type { IRateLimitStore } from '../../shared/rate-limit/rate-limit.types.js';
 
 /**
  * Admin UI surface. Mounted under /api/admin so it sits behind the global
@@ -20,7 +20,7 @@ import type { IRateLimitStore } from '../../shared/rate-limit/rate-limit.types.j
  */
 export const buildAdminRouter = (
   controller: AdminController,
-  rateLimitStore: IRateLimitStore,
+  rateLimiter: RateLimiterFactory,
 ): Router => {
   const router = Router();
 
@@ -30,39 +30,39 @@ export const buildAdminRouter = (
   router.get(
     '/flags',
     requireRole('admin'),
-    rateLimitPerRoute({ keyBy: 'user', store: rateLimitStore }),
-    controller.listFlags,
+    rateLimiter.perRoute({ keyBy: 'user' }),
+    asyncHandler(controller.listFlags),
   );
 
   router.patch(
     '/flags/:name',
     requireRole('admin'),
     validateRequest({ params: FlagNameParamSchema, body: FlagDefinitionSchema }),
-    rateLimitPerRoute({ keyBy: 'user', store: rateLimitStore }),
-    controller.updateFlag,
+    rateLimiter.perRoute({ keyBy: 'user' }),
+    asyncHandler(controller.updateFlag),
   );
 
   router.delete(
     '/flags/:name',
     requireRole('admin'),
     validateRequest({ params: FlagNameParamSchema }),
-    rateLimitPerRoute({ keyBy: 'user', store: rateLimitStore }),
-    controller.clearFlag,
+    rateLimiter.perRoute({ keyBy: 'user' }),
+    asyncHandler(controller.clearFlag),
   );
 
   router.post(
     '/flags/reload',
     requireRole('admin'),
-    rateLimitPerRoute({ keyBy: 'user', store: rateLimitStore }),
-    controller.reloadFlags,
+    rateLimiter.perRoute({ keyBy: 'user' }),
+    asyncHandler(controller.reloadFlags),
   );
 
   router.post(
     '/flags/:name/evaluate',
     requireRole('admin'),
     validateRequest({ params: FlagNameParamSchema, body: EvaluateFlagBodySchema }),
-    rateLimitPerRoute({ keyBy: 'user', store: rateLimitStore }),
-    controller.evaluateFlag,
+    rateLimiter.perRoute({ keyBy: 'user' }),
+    asyncHandler(controller.evaluateFlag),
   );
 
   // User listing for the per-user flag-override picker. Cursor-paginated.
@@ -70,8 +70,8 @@ export const buildAdminRouter = (
     '/users',
     requireRole('admin'),
     validateRequest({ query: ListUsersQuerySchema }),
-    rateLimitPerRoute({ keyBy: 'user', store: rateLimitStore }),
-    controller.listUsers,
+    rateLimiter.perRoute({ keyBy: 'user' }),
+    asyncHandler(controller.listUsers),
   );
 
   return router;

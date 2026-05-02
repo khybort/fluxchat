@@ -14,26 +14,13 @@ import jwt from 'jsonwebtoken';
 import { InMemoryChatRepository, InMemoryMessageRepository } from './in-memory-repositories.js';
 import { InMemoryUserRepository } from './in-memory-user-repository.js';
 import { Config } from '../../src/config/config.js';
+import { wireApp } from '../../src/di/wire-app.js';
 import type { IAiProvider } from '../../src/infrastructure/ai/ai.provider.js';
 import { MockAiProvider } from '../../src/infrastructure/ai/mock.provider.js';
 import { Logger } from '../../src/infrastructure/logger/logger.js';
-import { AdminController } from '../../src/modules/admin/admin.controller.js';
-import { buildAdminRouter } from '../../src/modules/admin/admin.routes.js';
-import { AuthController } from '../../src/modules/auth/auth.controller.js';
-import { buildAuthRouters } from '../../src/modules/auth/auth.routes.js';
-import { AuthService } from '../../src/modules/auth/auth.service.js';
-import { ChatController } from '../../src/modules/chat/chat.controller.js';
-import { buildChatRouter } from '../../src/modules/chat/chat.routes.js';
-import { ChatService } from '../../src/modules/chat/chat.service.js';
-import { CompletionService } from '../../src/modules/chat/completion.service.js';
-import { HistoryService } from '../../src/modules/chat/history.service.js';
-import { CompletionStrategyFactory } from '../../src/modules/chat/strategies/completion-strategy.factory.js';
-import { HistoryStrategyFactory } from '../../src/modules/chat/strategies/history-strategy.factory.js';
 import { REQUEST_BODY_LIMIT } from '../../src/shared/constants.js';
 import { errorHandler, notFoundHandler } from '../../src/shared/errors/error-handler.js';
 import { FeatureFlagService } from '../../src/shared/feature-flags/feature-flag.service.js';
-import { appCheckMiddleware } from '../../src/shared/middleware/app-check.js';
-import { authMiddleware } from '../../src/shared/middleware/auth.js';
 import { clientTypeMiddleware } from '../../src/shared/middleware/client-type.js';
 import { requestLoggerMiddleware } from '../../src/shared/middleware/request-logger.js';
 import { mountDocs } from '../../src/shared/openapi/docs.middleware.js';
@@ -64,22 +51,21 @@ export const buildTestApp = (
   const chats = new InMemoryChatRepository();
   const messages = new InMemoryMessageRepository();
   const users = new InMemoryUserRepository();
-  const ai = overrides.ai ?? new MockAiProvider();
+  const ai = overrides.ai ?? new MockAiProvider(logger);
   const rateLimitStore = overrides.rateLimitStore ?? new InMemoryRateLimitStore();
 
-  const completionFactory = new CompletionStrategyFactory(ai, flags);
-  const historyFactory = new HistoryStrategyFactory(messages, flags);
-
-  const authService = new AuthService(users, config);
-  const chatService = new ChatService(chats, flags);
-  const historyService = new HistoryService(chatService, historyFactory, flags);
-  const completionService = new CompletionService(chatService, messages, completionFactory, logger);
-
-  const authController = new AuthController(authService);
-  const chatController = new ChatController(chatService, completionService, historyService);
-  const adminController = new AdminController(flags, users);
-  const authRouters = buildAuthRouters(authController, rateLimitStore);
-  const adminRouter = buildAdminRouter(adminController, rateLimitStore);
+  // Identical wiring as production — see src/di/wire-app.ts. Tests differ
+  // only in the upstream deps (in-memory repos + mock AI), which keeps the
+  // strategy → service → controller → router graph drift-free between prod
+  // and test.
+  const wired = wireApp({
+    config,
+    logger,
+    flags,
+    rateLimitStore,
+    aiPrime: ai,
+    repos: { chats, messages, users },
+  });
 
   const app = express();
   app.disable('x-powered-by');
@@ -121,13 +107,13 @@ export const buildTestApp = (
   // Mirror app.ts: docs come before appCheck so they're browsable without a token.
   mountDocs(app, { enabled: config.values.app.docsEnabled, logger });
 
-  app.use(appCheckMiddleware);
-  app.use('/api/auth', authRouters.publicRouter);
-  app.use(authMiddleware);
+  app.use(wired.middleware.appCheck);
+  app.use('/api/auth', wired.routers.authPublic);
+  app.use(wired.middleware.auth);
   app.use(clientTypeMiddleware);
-  app.use('/api/auth', authRouters.protectedRouter);
-  app.use('/api/admin', adminRouter);
-  app.use('/api', buildChatRouter(chatController, rateLimitStore));
+  app.use('/api/auth', wired.routers.authProtected);
+  app.use('/api/admin', wired.routers.admin);
+  app.use('/api', wired.routers.chat);
 
   app.use(notFoundHandler);
   app.use(errorHandler);

@@ -1,6 +1,9 @@
 import { type ToolDefinition, z } from './types.js';
+import { ToolExecutionError } from '../../../shared/errors/app-error.js';
 
 const SAFE_EXPRESSION = /^[0-9+\-*/().\s]+$/;
+const TOOL_NAME = 'calculator';
+const MAX_EXPRESSION_LENGTH = 200;
 
 interface CalculatorArgs {
   expression: string;
@@ -19,14 +22,14 @@ interface CalculatorResult {
  */
 const evaluateSafely = (raw: string): number => {
   const trimmed = raw.trim();
-  if (!trimmed) throw new Error('Empty expression');
+  if (!trimmed) throw new ToolExecutionError(TOOL_NAME, 'Empty expression');
   if (!SAFE_EXPRESSION.test(trimmed)) {
-    throw new Error('Expression contains characters outside [0-9+-*/().]');
+    throw new ToolExecutionError(TOOL_NAME, 'Expression contains characters outside [0-9+-*/().]');
   }
   // eslint-disable-next-line @typescript-eslint/no-implied-eval, no-new-func
   const result = new Function('"use strict"; return (' + trimmed + ');')() as unknown;
   if (typeof result !== 'number' || !Number.isFinite(result)) {
-    throw new Error('Expression did not evaluate to a finite number');
+    throw new ToolExecutionError(TOOL_NAME, 'Expression did not evaluate to a finite number');
   }
   return result;
 };
@@ -41,7 +44,7 @@ export const calculatorTool: ToolDefinition<CalculatorArgs, CalculatorResult> = 
     expression: z
       .string()
       .min(1)
-      .max(200)
+      .max(MAX_EXPRESSION_LENGTH)
       .describe('Arithmetic expression, e.g. "(12 * 7) - 3 / 2"'),
   }),
   execute: ({ expression }) => ({
@@ -68,4 +71,5 @@ export const calculatorTool: ToolDefinition<CalculatorArgs, CalculatorResult> = 
     if (depth !== 0) return null;
     return { expression: expr };
   },
+  flag: { name: 'TOOL_CALCULATOR_ENABLED', default: true },
 };

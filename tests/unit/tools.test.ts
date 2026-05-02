@@ -11,11 +11,21 @@ import {
 } from '../../src/infrastructure/ai/tools/registry.js';
 import { searchWebTool } from '../../src/infrastructure/ai/tools/search-web.tool.js';
 import { timeTool } from '../../src/infrastructure/ai/tools/time.tool.js';
+import type { ToolContext } from '../../src/infrastructure/ai/tools/types.js';
 import { weatherTool } from '../../src/infrastructure/ai/tools/weather.tool.js';
+import { Logger } from '../../src/infrastructure/logger/logger.js';
+
+// Tools take a ToolContext for logger + cancellation. Unit tests don't need
+// either — a fresh AbortController never aborts during a synchronous tool
+// run, and the singleton logger is fine for "did the warn line emit?" checks.
+const ctx = (): ToolContext => ({
+  logger: Logger.getInstance(),
+  signal: new AbortController().signal,
+});
 
 describe('Calculator tool', () => {
   it('evaluates basic arithmetic', async () => {
-    const result = (await calculatorTool.execute({ expression: '(12 * 7) - 3 / 2' })) as {
+    const result = (await calculatorTool.execute({ expression: '(12 * 7) - 3 / 2' }, ctx())) as {
       value: number;
     };
     expect(result.value).toBe(82.5);
@@ -23,7 +33,7 @@ describe('Calculator tool', () => {
 
   it('rejects non-arithmetic input', () => {
     // calculator.execute is sync — wrap so toThrow can capture the throw.
-    expect(() => calculatorTool.execute({ expression: 'process.env' })).toThrow(/outside/);
+    expect(() => calculatorTool.execute({ expression: 'process.env' }, ctx())).toThrow(/outside/);
   });
 
   it('detects arithmetic intent in natural prompts', () => {
@@ -36,7 +46,7 @@ describe('Calculator tool', () => {
 
 describe('Time tool', () => {
   it('returns ISO + timezone for an explicit IANA name', () => {
-    const result = timeTool.execute({ timezone: 'Europe/Istanbul' }) as {
+    const result = timeTool.execute({ timezone: 'Europe/Istanbul' }, ctx()) as {
       timezone: string;
       iso: string;
       weekday: string;
@@ -47,7 +57,7 @@ describe('Time tool', () => {
   });
 
   it('falls back to UTC for invalid timezones', () => {
-    const result = timeTool.execute({ timezone: 'Mars/Olympus' }) as { timezone: string };
+    const result = timeTool.execute({ timezone: 'Mars/Olympus' }, ctx()) as { timezone: string };
     expect(result.timezone).toBe('UTC');
   });
 
@@ -59,16 +69,16 @@ describe('Time tool', () => {
 
 describe('Weather tool', () => {
   it('returns deterministic results for the same location', () => {
-    const a = weatherTool.execute({ location: 'Istanbul' }) as { temperature: number };
-    const b = weatherTool.execute({ location: 'Istanbul' }) as { temperature: number };
+    const a = weatherTool.execute({ location: 'Istanbul' }, ctx()) as { temperature: number };
+    const b = weatherTool.execute({ location: 'Istanbul' }, ctx()) as { temperature: number };
     expect(a.temperature).toBe(b.temperature);
   });
 
   it('respects fahrenheit units', () => {
-    const c = weatherTool.execute({ location: 'Istanbul', units: 'celsius' }) as {
+    const c = weatherTool.execute({ location: 'Istanbul', units: 'celsius' }, ctx()) as {
       temperature: number;
     };
-    const f = weatherTool.execute({ location: 'Istanbul', units: 'fahrenheit' }) as {
+    const f = weatherTool.execute({ location: 'Istanbul', units: 'fahrenheit' }, ctx()) as {
       temperature: number;
     };
     expect(f).not.toEqual(c);
@@ -78,7 +88,7 @@ describe('Weather tool', () => {
 
 describe('Currency tool', () => {
   it('converts USD to TRY with the snapshot rate', () => {
-    const result = currencyTool.execute({ amount: 100, from: 'USD', to: 'TRY' }) as {
+    const result = currencyTool.execute({ amount: 100, from: 'USD', to: 'TRY' }, ctx()) as {
       converted: number;
       rate: number;
     };
@@ -116,15 +126,15 @@ describe('Registry', () => {
   });
 
   it('executeTool validates args against the tool schema', async () => {
-    const ok = await executeTool('calculator', { expression: '1+1' });
+    const ok = await executeTool('calculator', { expression: '1+1' }, ctx());
     expect((ok as { value: number }).value).toBe(2);
 
-    const bad = await executeTool('calculator', { wrong: 'shape' });
+    const bad = await executeTool('calculator', { wrong: 'shape' }, ctx());
     expect(bad).toMatchObject({ error: 'invalid_arguments' });
   });
 
   it('executeTool returns an error envelope for unknown tools', async () => {
-    const result = await executeTool('NONEXISTENT', {});
+    const result = await executeTool('NONEXISTENT', {}, ctx());
     expect(result).toMatchObject({ error: expect.stringContaining('unknown_tool') });
   });
 
@@ -139,7 +149,7 @@ describe('Registry', () => {
   });
 
   it('toAiSdkTools registers every tool with an executable hook', () => {
-    const tools = toAiSdkTools();
+    const tools = toAiSdkTools(undefined, ctx());
     expect(Object.keys(tools).sort()).toEqual([
       'calculator',
       'convertCurrency',
@@ -150,7 +160,7 @@ describe('Registry', () => {
   });
 
   it('detectToolIntent dispatches the first matching tool', async () => {
-    const fired = await detectToolIntent('what is (10 + 5) * 2?');
+    const fired = await detectToolIntent('what is (10 + 5) * 2?', undefined, ctx());
     expect(fired?.name).toBe('calculator');
     expect((fired?.result as { value: number }).value).toBe(30);
   });
@@ -163,26 +173,25 @@ describe('Registry', () => {
   });
 
   it('toAiSdkTools honours the enabled allowlist', () => {
-    const subset = toAiSdkTools(['calculator', 'searchWeb']);
+    const subset = toAiSdkTools(['calculator', 'searchWeb'], ctx());
     expect(Object.keys(subset).sort()).toEqual(['calculator', 'searchWeb']);
   });
 
   it('detectToolIntent skips disabled tools', async () => {
     // Pick a prompt only the weather tool's heuristic can match (no other
     // tool keys on "weather"). Then disable weather → dispatcher returns null.
-    const allOn = await detectToolIntent('weather in Istanbul');
+    const allOn = await detectToolIntent('weather in Istanbul', undefined, ctx());
     expect(allOn?.name).toBe('getCurrentWeather');
-    const filtered = await detectToolIntent('weather in Istanbul', [
-      'calculator',
-      'getCurrentTime',
-      'convertCurrency',
-      'searchWeb',
-    ]);
+    const filtered = await detectToolIntent(
+      'weather in Istanbul',
+      ['calculator', 'getCurrentTime', 'convertCurrency', 'searchWeb'],
+      ctx(),
+    );
     expect(filtered).toBeNull();
   });
 
   it('detectToolIntent returns null when no tool matches', async () => {
-    const fired = await detectToolIntent('hello there');
+    const fired = await detectToolIntent('hello there', undefined, ctx());
     expect(fired).toBeNull();
   });
 });

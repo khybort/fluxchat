@@ -81,4 +81,5 @@ export const weatherTool: ToolDefinition<WeatherArgs, WeatherResult> = {
     const match = prompt.match(/in\s+([A-ZÇĞİÖŞÜ][\w\sÇĞİÖŞÜçğıöşü-]+)/);
     return { location: match?.[1]?.trim() ?? 'Istanbul' };
   },
+  flag: { name: 'TOOL_CURRENT_WEATHER_ENABLED', default: true },
 };

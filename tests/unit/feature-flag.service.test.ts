@@ -245,8 +245,9 @@ describe('FeatureFlagService — context-aware evaluation', () => {
     try {
       const service = FeatureFlagService.getInstance();
       const defs = service.definitions();
-      expect(defs.AI_TOOLS_ENABLED.percentage).toBe(25);
-      expect(defs.AI_TOOLS_ENABLED.default).toBe(false);
+      const aiTools = defs.AI_TOOLS_ENABLED;
+      expect(aiTools?.percentage).toBe(25);
+      expect(aiTools?.default).toBe(false);
     } finally {
       unlinkSync(filePath);
     }

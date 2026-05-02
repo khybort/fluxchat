@@ -1,3 +1,4 @@
+import { RATE_LIMIT } from '../constants.js';
 import type { IRateLimitStore, RateLimitDecision } from './rate-limit.types.js';
 
 interface Bucket {
@@ -9,12 +10,19 @@ interface Bucket {
  * Single-instance, fixed-window-with-refill rate limiter. Each `(key, limit)`
  * gets `limit` tokens that reset every `windowMs`. Suitable for development and
  * single-process deployments. For multi-instance, use {@link RedisRateLimitStore}.
+ *
+ * Memory hygiene: opportunistically evicts buckets older than
+ * `windowMs * RATE_LIMIT.STALE_FACTOR` on each `consume()`. If the live size
+ * still exceeds `RATE_LIMIT.MAX_BUCKETS`, drops the oldest entries (Map preserves
+ * insertion order, so iteration starts at the oldest).
  */
 export class InMemoryRateLimitStore implements IRateLimitStore {
   private readonly buckets = new Map<string, Bucket>();
 
   public consume(key: string, limit: number, windowMs: number): Promise<RateLimitDecision> {
     const now = Date.now();
+    this.evictStale(now, windowMs);
+
     let bucket = this.buckets.get(key);
     if (!bucket) {
       bucket = { tokens: limit, refilledAt: now };
@@ -39,5 +47,19 @@ export class InMemoryRateLimitStore implements IRateLimitStore {
   /** Test-only — clear all buckets. */
   public reset(): void {
     this.buckets.clear();
+  }
+
+  private evictStale(now: number, windowMs: number): void {
+    const staleThreshold = windowMs * RATE_LIMIT.STALE_FACTOR;
+    for (const [key, bucket] of this.buckets) {
+      if (now - bucket.refilledAt > staleThreshold) {
+        this.buckets.delete(key);
+      }
+    }
+    while (this.buckets.size > RATE_LIMIT.MAX_BUCKETS) {
+      const oldest = this.buckets.keys().next().value;
+      if (oldest === undefined) break;
+      this.buckets.delete(oldest);
+    }
   }
 }

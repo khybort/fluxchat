@@ -60,3 +60,9 @@ export class AppCheckError extends AppError {
     super('APP_CHECK_FAILED', 401, message);
   }
 }
+
+export class ToolExecutionError extends AppError {
+  constructor(toolName: string, message: string, details?: unknown) {
+    super('TOOL_EXECUTION_FAILED', 422, `[${toolName}] ${message}`, details);
+  }
+}

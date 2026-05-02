@@ -75,4 +75,5 @@ export const currencyTool: ToolDefinition<CurrencyArgs, CurrencyResult> = {
       to: to.toUpperCase() as Currency,
     };
   },
+  flag: { name: 'TOOL_CONVERT_CURRENCY_ENABLED', default: true },
 };

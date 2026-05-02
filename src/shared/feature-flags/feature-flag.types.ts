@@ -2,32 +2,55 @@ import type { ClientType } from '../constants.js';
 import type { UserRole } from '../types/express.js';
 
 /**
- * Type-safe feature flag registry. Adding a new flag is two edits:
- * this interface, plus an entry in `flag-defaults.ts`. See CLAUDE.md §12.
+ * Type-safe registry for the FIXED, hand-curated flags. Per-tool flags follow
+ * the `TOOL_<UPPER>_ENABLED` template and are added implicitly via each
+ * tool's `flag` spec — they don't need entries here. See CLAUDE.md §12.
+ *
+ * Adding a new core (non-tool) flag is two edits: this interface plus an
+ * entry in `flag-defaults.ts`.
  */
-export interface FeatureFlagSchema {
+export interface CoreFlagSchema {
   STREAMING_ENABLED: boolean;
   PAGINATION_LIMIT: number;
   /** Master switch for the entire AI tool catalog. When off, no tools are
-   *  exposed to the model regardless of the per-tool flags below. */
+   *  exposed to the model regardless of the per-tool flags. */
   AI_TOOLS_ENABLED: boolean;
   CHAT_HISTORY_ENABLED: boolean;
   RATE_LIMIT_PER_MINUTE: number;
   /** Kill-switch for the AI completion route. Default true. */
   COMPLETION_ENABLED: boolean;
-  /** Per-tool toggles. Subordinate to AI_TOOLS_ENABLED — when the master is
-   *  off, these are ignored. When on, only tools whose flag is true are
-   *  exposed to the model. Lets ops disable a buggy tool without killing
-   *  the whole feature. */
-  TOOL_CALCULATOR_ENABLED: boolean;
-  TOOL_CURRENT_TIME_ENABLED: boolean;
-  TOOL_CURRENT_WEATHER_ENABLED: boolean;
-  TOOL_CONVERT_CURRENCY_ENABLED: boolean;
-  TOOL_SEARCH_WEB_ENABLED: boolean;
 }
 
-export type FlagName = keyof FeatureFlagSchema;
-export type FlagValue = FeatureFlagSchema[FlagName];
+/**
+ * Per-tool flag name template. Each tool's `flag.name` must match this
+ * pattern; runtime parsing (`TOOL_FLAG_PATTERN` in feature-flag.parser.ts)
+ * also enforces the all-caps body. We use `string` here (not `Uppercase<string>`)
+ * because TypeScript treats the two template types as non-substitutable across
+ * library boundaries, which broke generic widening at call sites.
+ */
+export type ToolFlagName = `TOOL_${string}_ENABLED`;
+
+export type FlagName = keyof CoreFlagSchema | ToolFlagName;
+export type FlagValue = CoreFlagSchema[keyof CoreFlagSchema] | boolean;
+
+/**
+ * Type-level lookup of the value type for a given flag name. Core flags map
+ * to their declared types in {@link CoreFlagSchema}; tool flags resolve to
+ * `boolean` by construction (every {@link import('../../infrastructure/ai/tools/types.js').ToolFlagSpec}
+ * carries a boolean default). Lets `flags.get<K>(name)` return the precise
+ * type without enumerating every tool flag in this module.
+ */
+export type FlagValueFor<K extends FlagName> = K extends keyof CoreFlagSchema
+  ? CoreFlagSchema[K]
+  : boolean;
+
+/**
+ * Snapshot shape returned by {@link FeatureFlagService.snapshot}: every core
+ * flag with its declared type, plus all tool flags as booleans (extra string
+ * keys allowed because the tool catalog is plugin-style — registry decides
+ * which tool flags are present at runtime).
+ */
+export type FeatureFlagSnapshot = CoreFlagSchema & Record<string, FlagValue>;
 
 /**
  * Per-evaluation context. Every field is optional so call sites can fill

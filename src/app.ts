@@ -12,8 +12,7 @@ import helmet from 'helmet';
 import type { AppContainer } from './di/container.js';
 import { REQUEST_BODY_LIMIT } from './shared/constants.js';
 import { errorHandler, notFoundHandler } from './shared/errors/error-handler.js';
-import { appCheckMiddleware } from './shared/middleware/app-check.js';
-import { authMiddleware } from './shared/middleware/auth.js';
+import { asyncHandler } from './shared/middleware/async-handler.js';
 import { clientTypeMiddleware } from './shared/middleware/client-type.js';
 import { requestLoggerMiddleware } from './shared/middleware/request-logger.js';
 import { mountDocs } from './shared/openapi/docs.middleware.js';
@@ -65,7 +64,7 @@ export const createApp = (container: AppContainer): Express => {
     logger: container.logger,
   });
 
-  app.use(appCheckMiddleware);
+  app.use(container.middleware.appCheck);
 
   // Public auth routes are mounted BEFORE the global JWT middleware — login and
   // register can't require a token they don't have yet. App Check still applies.
@@ -73,7 +72,7 @@ export const createApp = (container: AppContainer): Express => {
 
   // Case order: App Check → Auth (JWT) → Client type. Auth runs first so the
   // child logger we bind in clientTypeMiddleware can include req.user.id later.
-  app.use(authMiddleware);
+  app.use(container.middleware.auth);
   app.use(clientTypeMiddleware);
 
   app.use('/api/auth', container.routers.authProtected);
@@ -132,15 +131,18 @@ const mountAdminFlagsReload = (app: Express, container: AppContainer): void => {
     return true;
   };
 
-  app.post('/admin/flags/reload', async (req: Request, res: Response) => {
-    if (!requireAdminToken(req, res)) return;
-    await container.flags.reload();
-    container.logger.pino.info({ via: 'admin_endpoint' }, 'feature_flags_reloaded_admin');
-    res.status(200).json({
-      status: 'reloaded',
-      flags: container.flags.snapshot(),
-    });
-  });
+  app.post(
+    '/admin/flags/reload',
+    asyncHandler(async (req: Request, res: Response) => {
+      if (!requireAdminToken(req, res)) return;
+      await container.flags.reload();
+      container.logger.pino.info({ via: 'admin_endpoint' }, 'feature_flags_reloaded_admin');
+      res.status(200).json({
+        status: 'reloaded',
+        flags: container.flags.snapshot(),
+      });
+    }),
+  );
 
   app.get('/admin/flags', (req: Request, res: Response) => {
     if (!requireAdminToken(req, res)) return;

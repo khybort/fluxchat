@@ -1,6 +1,7 @@
-import type { Router } from 'express';
+import type { RequestHandler, Router } from 'express';
 import Redis from 'ioredis';
 
+import { wireApp } from './wire-app.js';
 import { Config } from '../config/config.js';
 import type { IAiProvider } from '../infrastructure/ai/ai.provider.js';
 import { AnthropicProvider } from '../infrastructure/ai/anthropic.provider.js';
@@ -11,20 +12,11 @@ import { OpenAiProvider } from '../infrastructure/ai/openai.provider.js';
 import { PrismaService } from '../infrastructure/database/prisma.service.js';
 import { PrismaFlagOverrideStore } from '../infrastructure/feature-flags/prisma-override-store.js';
 import { Logger } from '../infrastructure/logger/logger.js';
-import { AdminController } from '../modules/admin/admin.controller.js';
-import { buildAdminRouter } from '../modules/admin/admin.routes.js';
-import { AuthController } from '../modules/auth/auth.controller.js';
-import { buildAuthRouters } from '../modules/auth/auth.routes.js';
-import { AuthService } from '../modules/auth/auth.service.js';
-import { ChatController } from '../modules/chat/chat.controller.js';
+import type { AdminController } from '../modules/admin/admin.controller.js';
+import type { AuthController } from '../modules/auth/auth.controller.js';
+import type { ChatController } from '../modules/chat/chat.controller.js';
 import { ChatRepository } from '../modules/chat/chat.repository.js';
-import { buildChatRouter } from '../modules/chat/chat.routes.js';
-import { ChatService } from '../modules/chat/chat.service.js';
-import { CompletionService } from '../modules/chat/completion.service.js';
-import { HistoryService } from '../modules/chat/history.service.js';
 import { MessageRepository } from '../modules/chat/message.repository.js';
-import { CompletionStrategyFactory } from '../modules/chat/strategies/completion-strategy.factory.js';
-import { HistoryStrategyFactory } from '../modules/chat/strategies/history-strategy.factory.js';
 import { UserRepository } from '../modules/user/user.repository.js';
 import { FeatureFlagService } from '../shared/feature-flags/feature-flag.service.js';
 import { InMemoryRateLimitStore } from '../shared/rate-limit/in-memory.store.js';
@@ -56,6 +48,12 @@ export interface AppContainer {
   ai: {
     prime: IAiProvider;
     fast: IAiProvider;
+  };
+  middleware: {
+    /** JWT verification middleware bound to this container's Config. */
+    auth: RequestHandler;
+    /** Firebase App Check middleware bound to this container's Config. */
+    appCheck: RequestHandler;
   };
   controllers: {
     chat: ChatController;
@@ -126,7 +124,7 @@ const buildPrimeProvider = (builders: Partial<ProviderBuilders>, logger: Logger)
     return builders.groq();
   }
   logger.pino.warn('no_ai_keys_configured_using_mock_provider');
-  return new MockAiProvider();
+  return new MockAiProvider(logger);
 };
 
 const buildFastProvider = (builders: Partial<ProviderBuilders>, logger: Logger): IAiProvider => {
@@ -137,7 +135,7 @@ const buildFastProvider = (builders: Partial<ProviderBuilders>, logger: Logger):
   if (builders.groq) return builders.groq();
   if (builders.anthropic) return builders.anthropic();
   if (builders.openai) return builders.openai();
-  return new MockAiProvider();
+  return new MockAiProvider(logger);
 };
 
 interface RateLimitWiring {
@@ -179,33 +177,23 @@ export const buildContainer = (): AppContainer => {
 
   const rateLimit = buildRateLimitStore(config, logger);
 
-  // Repositories (DIP — services depend on the interfaces).
-  const chatRepo = new ChatRepository(prisma);
-  const messageRepo = new MessageRepository(prisma);
-  const userRepo = new UserRepository(prisma);
+  // Repositories (DIP — services depend on the interfaces, the container
+  // injects the Prisma-backed concretions).
+  const chats = new ChatRepository(prisma);
+  const messages = new MessageRepository(prisma);
+  const users = new UserRepository(prisma);
 
-  // Strategy factories — chat completion uses the prime provider per spec.
-  const completionFactory = new CompletionStrategyFactory(prime, flags);
-  const historyFactory = new HistoryStrategyFactory(messageRepo, flags);
-
-  // Services.
-  const authService = new AuthService(userRepo, config);
-  const chatService = new ChatService(chatRepo, flags);
-  const historyService = new HistoryService(chatService, historyFactory, flags);
-  const completionService = new CompletionService(
-    chatService,
-    messageRepo,
-    completionFactory,
+  // Strategy → service → controller → router graph. Identical wiring runs
+  // in tests with in-memory repos + a mock AI provider, so a signature change
+  // here lands in both code paths in one edit.
+  const wired = wireApp({
+    config,
     logger,
-  );
-
-  // Controllers + routers.
-  const authController = new AuthController(authService);
-  const chatController = new ChatController(chatService, completionService, historyService);
-  const adminController = new AdminController(flags, userRepo);
-  const chatRouter = buildChatRouter(chatController, rateLimit.store);
-  const authRouters = buildAuthRouters(authController, rateLimit.store);
-  const adminRouter = buildAdminRouter(adminController, rateLimit.store);
+    flags,
+    rateLimitStore: rateLimit.store,
+    aiPrime: prime,
+    repos: { chats, messages, users },
+  });
 
   return {
     config,
@@ -214,13 +202,9 @@ export const buildContainer = (): AppContainer => {
     flags,
     rateLimitStore: rateLimit.store,
     ai: { prime, fast },
-    controllers: { chat: chatController, auth: authController, admin: adminController },
-    routers: {
-      chat: chatRouter,
-      authPublic: authRouters.publicRouter,
-      authProtected: authRouters.protectedRouter,
-      admin: adminRouter,
-    },
+    middleware: wired.middleware,
+    controllers: wired.controllers,
+    routers: wired.routers,
     shutdown: rateLimit.shutdown,
   };
 };

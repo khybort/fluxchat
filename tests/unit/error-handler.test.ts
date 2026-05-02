@@ -1,3 +1,5 @@
+import { Anthropic } from '@anthropic-ai/sdk';
+import { Prisma } from '@prisma/client';
 import type { Request, Response } from 'express';
 import { describe, expect, it, vi } from 'vitest';
 import type { ZodError } from 'zod';
@@ -68,5 +70,75 @@ describe('errorHandler', () => {
     const res = buildRes();
     errorHandler(new Error('boom'), buildReq(), res, vi.fn());
     expect(res.status).toHaveBeenCalledWith(500);
+  });
+
+  it('maps Prisma P2025 to 404 NOT_FOUND', () => {
+    const res = buildRes();
+    const prismaError = new Prisma.PrismaClientKnownRequestError('Record not found', {
+      code: 'P2025',
+      clientVersion: 'test',
+    });
+    errorHandler(prismaError, buildReq(), res, vi.fn());
+    expect(res.status).toHaveBeenCalledWith(404);
+    expect(res.json).toHaveBeenCalledWith(
+      expect.objectContaining({
+        error: expect.objectContaining({ code: 'NOT_FOUND' }),
+      }),
+    );
+  });
+
+  it('maps Prisma P2002 to 409 CONFLICT', () => {
+    const res = buildRes();
+    const prismaError = new Prisma.PrismaClientKnownRequestError('Unique constraint', {
+      code: 'P2002',
+      clientVersion: 'test',
+    });
+    errorHandler(prismaError, buildReq(), res, vi.fn());
+    expect(res.status).toHaveBeenCalledWith(409);
+    expect(res.json).toHaveBeenCalledWith(
+      expect.objectContaining({
+        error: expect.objectContaining({ code: 'CONFLICT' }),
+      }),
+    );
+  });
+
+  it('maps Prisma P2003 (FK violation) to 409 CONFLICT', () => {
+    const res = buildRes();
+    const prismaError = new Prisma.PrismaClientKnownRequestError('FK violation', {
+      code: 'P2003',
+      clientVersion: 'test',
+    });
+    errorHandler(prismaError, buildReq(), res, vi.fn());
+    expect(res.status).toHaveBeenCalledWith(409);
+    expect(res.json).toHaveBeenCalledWith(
+      expect.objectContaining({
+        error: expect.objectContaining({ code: 'CONFLICT' }),
+      }),
+    );
+  });
+
+  it('maps Anthropic.APIError to 503 AI_PROVIDER_ERROR', () => {
+    const res = buildRes();
+    const apiError = new Anthropic.APIError(
+      503,
+      { error: { message: 'overloaded' } },
+      'overloaded',
+      undefined,
+    );
+    errorHandler(apiError, buildReq(), res, vi.fn());
+    expect(res.status).toHaveBeenCalledWith(503);
+    expect(res.json).toHaveBeenCalledWith(
+      expect.objectContaining({
+        error: expect.objectContaining({ code: 'AI_PROVIDER_ERROR' }),
+      }),
+    );
+  });
+
+  it('skips response when headers already sent (SSE mid-stream)', () => {
+    const res = buildRes();
+    (res as { headersSent: boolean }).headersSent = true;
+    errorHandler(new Error('mid-stream'), buildReq(), res, vi.fn());
+    expect(res.status).not.toHaveBeenCalled();
+    expect(res.json).not.toHaveBeenCalled();
   });
 });

@@ -9,6 +9,7 @@ import type {
   ToolCall,
 } from './ai.types.js';
 import { toAiSdkTools } from './tools/registry.js';
+import type { ToolContext } from './tools/types.js';
 import type { Logger } from '../logger/logger.js';
 
 interface GroqProviderOptions {
@@ -39,10 +40,13 @@ export class GroqProvider implements IAiProvider {
   }
 
   public async complete(request: CompletionRequest): Promise<CompletionResultJson> {
+    // Non-streaming path has no client signal — fresh, never-aborted controller
+    // satisfies the ToolContext contract for any tool the SDK invokes.
+    const toolCtx: ToolContext = { logger: this.logger, signal: new AbortController().signal };
     const result = await generateText({
       model: this.modelRef,
       messages: this.buildMessages(request),
-      ...(request.toolsEnabled ? { tools: this.buildTools(request.enabledTools) } : {}),
+      ...(request.toolsEnabled ? { tools: this.buildTools(request.enabledTools, toolCtx) } : {}),
     });
 
     const toolCalls: ToolCall[] = (result.toolCalls ?? []).map((call, index) => {
@@ -75,11 +79,12 @@ export class GroqProvider implements IAiProvider {
   ): AsyncIterable<CompletionStreamEvent> {
     yield { type: 'thinking' };
 
+    const toolCtx: ToolContext = { logger: this.logger, signal };
     const result = streamText({
       model: this.modelRef,
       messages: this.buildMessages(request),
       abortSignal: signal,
-      ...(request.toolsEnabled ? { tools: this.buildTools(request.enabledTools) } : {}),
+      ...(request.toolsEnabled ? { tools: this.buildTools(request.enabledTools, toolCtx) } : {}),
     });
 
     let fullText = '';
@@ -110,7 +115,7 @@ export class GroqProvider implements IAiProvider {
           throw evt.error instanceof Error ? evt.error : new Error(String(evt.error));
         }
       }
-    } catch (error) {
+    } catch (error: unknown) {
       this.logger.pino.error({ err: error }, 'groq_stream_error');
       throw error;
     }
@@ -137,9 +142,10 @@ export class GroqProvider implements IAiProvider {
     ];
   }
 
-  private buildTools(enabledTools?: readonly string[]) {
+  private buildTools(enabledTools: readonly string[] | undefined, ctx: ToolContext) {
     // Sourced from src/infrastructure/ai/tools/registry.ts. Per-tool flag
-    // gating is applied here — strategies pass the precomputed list.
-    return toAiSdkTools(enabledTools);
+    // gating is applied here — strategies pass the precomputed list. ctx
+    // carries the request-scoped logger + signal into the tool's `execute`.
+    return toAiSdkTools(enabledTools, ctx);
   }
 }

@@ -1,5 +1,5 @@
 import type { RequestHandler } from 'express';
-import type { ZodSchema } from 'zod';
+import { ZodError, type ZodSchema } from 'zod';
 
 import { ValidationError } from '../errors/app-error.js';
 
@@ -22,14 +22,9 @@ export const validateRequest = (schemas: RequestSchemas): RequestHandler => {
         Object.assign(req.params, schemas.params.parse(req.params));
       }
       next();
-    } catch (error) {
-      if (error && typeof error === 'object' && 'flatten' in error) {
-        return next(
-          new ValidationError(
-            (error as { flatten: () => unknown }).flatten(),
-            'Request validation failed',
-          ),
-        );
+    } catch (error: unknown) {
+      if (error instanceof ZodError) {
+        return next(new ValidationError(error.flatten(), 'Request validation failed'));
       }
       next(error);
     }

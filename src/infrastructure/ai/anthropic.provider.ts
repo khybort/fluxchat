@@ -2,13 +2,19 @@ import { Anthropic } from '@anthropic-ai/sdk';
 
 import type { IAiProvider } from './ai.provider.js';
 import type {
-  ChatTurn,
   CompletionRequest,
   CompletionResultJson,
   CompletionStreamEvent,
   ToolCall,
 } from './ai.types.js';
+import {
+  extractSystemPrompt,
+  toAnthropicMessages,
+  toToolResultBlocks,
+} from './anthropic-message.mapper.js';
+import { processTurnStream, type TurnState } from './anthropic-stream.handler.js';
 import { executeTool, toAnthropicTools } from './tools/registry.js';
+import { AI } from '../../shared/constants.js';
 import type { Logger } from '../logger/logger.js';
 
 interface AnthropicProviderOptions {
@@ -25,54 +31,6 @@ interface AnthropicProviderFactoryOptions {
   maxTokens?: number;
 }
 
-const DEFAULT_MAX_TOKENS = 4096;
-// Cap the agentic tool loop so a misbehaving model can't burn tokens
-// indefinitely. Five rounds is enough for any realistic chain (search →
-// refine → answer) and short enough to bound the worst case.
-const MAX_TOOL_ITERATIONS = 5;
-
-// Tool list is sourced from the central registry (src/infrastructure/ai/tools).
-// Adding a tool there exposes it to every provider automatically.
-
-interface AnthropicMessage {
-  role: 'user' | 'assistant';
-  content: string;
-}
-
-const toAnthropicMessages = (history: ChatTurn[], prompt: string): AnthropicMessage[] => {
-  const filtered = history.filter((t) => t.role !== 'system');
-  const merged = [...filtered, { role: 'user' as const, content: prompt }];
-  return merged.map((turn) => ({
-    role: turn.role === 'system' ? 'user' : turn.role,
-    content: turn.content,
-  }));
-};
-
-const extractSystemPrompt = (history: ChatTurn[]): string | undefined => {
-  const systems = history.filter((t) => t.role === 'system').map((t) => t.content);
-  return systems.length > 0 ? systems.join('\n\n') : undefined;
-};
-
-type StreamingBlock =
-  | { kind: 'text'; text: string }
-  | { kind: 'tool_use'; id: string; name: string; inputJson: string };
-
-interface ExecutedTool {
-  block: Extract<StreamingBlock, { kind: 'tool_use' }>;
-  args: Record<string, unknown>;
-  result: unknown;
-}
-
-const safeParseJson = (input: string): Record<string, unknown> => {
-  if (!input.trim()) return {};
-  try {
-    const parsed: unknown = JSON.parse(input);
-    return typeof parsed === 'object' && parsed !== null ? (parsed as Record<string, unknown>) : {};
-  } catch {
-    return {};
-  }
-};
-
 /**
  * Direct Anthropic SDK integration for the prime chat path (Claude Sonnet 4.6).
  *
@@ -82,7 +40,9 @@ const safeParseJson = (input: string): Record<string, unknown> => {
  * `content_block_stop` fires — emitting `tool_execution` to the client *before*
  * the follow-up text. After the initial stream ends with `stop_reason='tool_use'`,
  * we open a second stream carrying the `tool_result` blocks and forward its text
- * deltas to the caller.
+ * deltas to the caller. The event-handling state machine itself lives in
+ * {@link './anthropic-stream.handler.js'}; message ↔ SDK shape translation lives
+ * in {@link './anthropic-message.mapper.js'}.
  */
 export class AnthropicProvider implements IAiProvider {
   public readonly kind = 'anthropic';
@@ -95,7 +55,7 @@ export class AnthropicProvider implements IAiProvider {
     this.client = opts.client;
     this.model = opts.model;
     this.logger = opts.logger;
-    this.maxTokens = opts.maxTokens ?? DEFAULT_MAX_TOKENS;
+    this.maxTokens = opts.maxTokens ?? AI.DEFAULT_MAX_TOKENS;
   }
 
   /** Convenience factory for production wiring — builds the SDK client from an API key. */
@@ -125,7 +85,7 @@ export class AnthropicProvider implements IAiProvider {
     let promptTokens = 0;
     let completionTokens = 0;
 
-    for (let iter = 0; iter < MAX_TOOL_ITERATIONS; iter++) {
+    for (let iter = 0; iter < AI.MAX_TOOL_ITERATIONS; iter++) {
       const response = await this.client.messages.create({
         model: this.model,
         max_tokens: this.maxTokens,
@@ -135,7 +95,7 @@ export class AnthropicProvider implements IAiProvider {
       });
       promptTokens += response.usage.input_tokens;
       completionTokens += response.usage.output_tokens;
-      text = this.collectText(response.content);
+      text = collectText(response.content);
 
       if (response.stop_reason !== 'tool_use') break;
 
@@ -144,10 +104,14 @@ export class AnthropicProvider implements IAiProvider {
       );
       if (toolUseBlocks.length === 0) break;
 
+      // The non-streaming path has no client signal — the SDK call itself is
+      // the only async unit, and the caller awaits it as a single promise.
+      // A fresh, never-aborted controller satisfies the ToolContext contract.
+      const toolCtx = { logger: this.logger, signal: new AbortController().signal };
       const toolResults = await Promise.all(
         toolUseBlocks.map(async (block) => {
           const args = block.input as Record<string, unknown>;
-          const result = await executeTool(block.name, args);
+          const result = await executeTool(block.name, args, toolCtx);
           toolCalls.push({ name: block.name, args, result });
           return {
             type: 'tool_result' as const,
@@ -183,14 +147,7 @@ export class AnthropicProvider implements IAiProvider {
     let promptTokens = 0;
     let completionTokens = 0;
 
-    // Agentic loop: each iteration is a separate stream. Tool-use blocks are
-    // detected as they stream, executed at content_block_stop, then the loop
-    // continues with the tool_results appended to the conversation. When the
-    // model ends with anything other than `tool_use` (e.g. `end_turn`), we
-    // exit. `tools` is passed every time so the model can chain or naturally
-    // stop — without it, follow-up turns sometimes return only tool_use
-    // blocks the API silently drops, leaving empty text.
-    for (let iter = 0; iter < MAX_TOOL_ITERATIONS; iter++) {
+    for (let iter = 0; iter < AI.MAX_TOOL_ITERATIONS; iter++) {
       if (signal.aborted) break;
 
       const turnStream = this.client.messages.stream({
@@ -201,80 +158,20 @@ export class AnthropicProvider implements IAiProvider {
         ...(tools ? { tools } : {}),
       });
 
-      const blocks = new Map<number, StreamingBlock>();
-      const executedTools: ExecutedTool[] = [];
-      let stopReason: string | undefined;
+      const turnState: TurnState = { executedTools: [], deltaText: '' };
+      yield* processTurnStream(turnStream, { logger: this.logger, signal, request }, turnState);
+      totalText += turnState.deltaText;
 
-      try {
-        for await (const event of turnStream) {
-          if (signal.aborted) break;
-
-          if (event.type === 'content_block_start') {
-            const cb = event.content_block;
-            if (cb.type === 'tool_use') {
-              blocks.set(event.index, {
-                kind: 'tool_use',
-                id: cb.id,
-                name: cb.name,
-                inputJson: '',
-              });
-            } else if (cb.type === 'text') {
-              blocks.set(event.index, { kind: 'text', text: '' });
-            }
-            continue;
-          }
-
-          if (event.type === 'content_block_delta') {
-            const block = blocks.get(event.index);
-            if (!block) continue;
-            if (event.delta.type === 'text_delta' && block.kind === 'text') {
-              block.text += event.delta.text;
-              totalText += event.delta.text;
-              yield { type: 'delta', text: event.delta.text };
-            } else if (event.delta.type === 'input_json_delta' && block.kind === 'tool_use') {
-              block.inputJson += event.delta.partial_json;
-            }
-            continue;
-          }
-
-          if (event.type === 'content_block_stop') {
-            const block = blocks.get(event.index);
-            if (block?.kind === 'tool_use' && request.toolsEnabled) {
-              const args = safeParseJson(block.inputJson);
-              const result = await executeTool(block.name, args);
-              executedTools.push({ block, args, result });
-              yield {
-                type: 'tool_execution',
-                tool: { name: block.name, args, result },
-              };
-            }
-            continue;
-          }
-
-          if (event.type === 'message_delta' && event.delta.stop_reason) {
-            stopReason = event.delta.stop_reason;
-          }
-        }
-      } catch (error) {
-        this.logger.pino.error({ err: error }, 'anthropic_stream_error');
-        throw error;
-      }
+      if (signal.aborted) break;
 
       const finalMessage = await turnStream.finalMessage();
       promptTokens += finalMessage.usage.input_tokens;
       completionTokens += finalMessage.usage.output_tokens;
 
-      if (stopReason !== 'tool_use' || executedTools.length === 0) break;
+      if (turnState.stopReason !== 'tool_use' || turnState.executedTools.length === 0) break;
 
       conversation.push({ role: 'assistant', content: finalMessage.content });
-      conversation.push({
-        role: 'user',
-        content: executedTools.map((t) => ({
-          type: 'tool_result' as const,
-          tool_use_id: t.block.id,
-          content: JSON.stringify(t.result),
-        })),
-      });
+      conversation.push({ role: 'user', content: toToolResultBlocks(turnState.executedTools) });
     }
 
     yield {
@@ -283,11 +180,10 @@ export class AnthropicProvider implements IAiProvider {
       usage: { promptTokens, completionTokens },
     };
   }
-
-  private collectText(content: Anthropic.Messages.ContentBlock[]): string {
-    return content
-      .filter((b): b is Extract<typeof b, { type: 'text' }> => b.type === 'text')
-      .map((b) => b.text)
-      .join('');
-  }
 }
+
+const collectText = (content: Anthropic.Messages.ContentBlock[]): string =>
+  content
+    .filter((b): b is Extract<typeof b, { type: 'text' }> => b.type === 'text')
+    .map((b) => b.text)
+    .join('');

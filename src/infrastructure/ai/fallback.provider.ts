@@ -35,7 +35,7 @@ export class FallbackAiProvider implements IAiProvider {
   public async complete(request: CompletionRequest): Promise<CompletionResultJson> {
     try {
       return await this.primary.complete(request);
-    } catch (error) {
+    } catch (error: unknown) {
       this.logger.pino.warn({ err: error, label: this.label }, 'ai_primary_complete_failed');
       return await this.secondary.complete(request);
     }
@@ -54,7 +54,7 @@ export class FallbackAiProvider implements IAiProvider {
         yield event;
       }
       return;
-    } catch (error) {
+    } catch (error: unknown) {
       if (primaryStarted) {
         this.logger.pino.error(
           { err: error, label: this.label },

@@ -1,4 +1,5 @@
 import { type ToolDefinition, z } from './types.js';
+import { TOOLS } from '../../../shared/constants.js';
 
 interface SearchWebArgs {
   query: string;
@@ -31,7 +32,7 @@ interface DdgResponse {
   }>;
 }
 
-const DDG_TIMEOUT_MS = 4_000;
+const DEFAULT_RESULT_CAP = 3;
 
 /** Flatten DDG's nested topics so headings + leaves all become candidates. */
 const flattenTopics = (
@@ -67,17 +68,21 @@ export const searchWebTool: ToolDefinition<SearchWebArgs, SearchWebResult> = {
     'abstract plus related links. Use this for questions about current events, ' +
     "people, companies, or anything outside the model's training data.",
   parameters: z.object({
-    query: z.string().min(1).max(200).describe('Search query in natural language.'),
+    query: z
+      .string()
+      .min(1)
+      .max(TOOLS.MAX_SEARCH_QUERY_LENGTH)
+      .describe('Search query in natural language.'),
     maxResults: z
       .number()
       .int()
       .min(1)
-      .max(10)
+      .max(TOOLS.MAX_WEB_SEARCH_RESULTS)
       .optional()
       .describe('Cap on related-topic results to return (default 3).'),
   }),
-  execute: async ({ query, maxResults }) => {
-    const cap = maxResults ?? 3;
+  execute: async ({ query, maxResults }, ctx) => {
+    const cap = maxResults ?? DEFAULT_RESULT_CAP;
     const url = new URL('https://api.duckduckgo.com/');
     url.searchParams.set('q', query);
     url.searchParams.set('format', 'json');
@@ -94,7 +99,7 @@ export const searchWebTool: ToolDefinition<SearchWebArgs, SearchWebResult> = {
     };
 
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), DDG_TIMEOUT_MS);
+    const timer = setTimeout(() => controller.abort(), TOOLS.WEB_SEARCH_TIMEOUT_MS);
     try {
       const res = await fetch(url, {
         signal: controller.signal,
@@ -120,8 +125,11 @@ export const searchWebTool: ToolDefinition<SearchWebArgs, SearchWebResult> = {
         results,
         source: 'duckduckgo',
       };
-    } catch {
+    } catch (error: unknown) {
       // Timeouts, network errors, JSON parse failures all degrade to empty.
+      // ctx.logger is the request-scoped pino child — keeps tool failures
+      // correlated with the originating request.
+      ctx.logger.pino.debug({ err: error, query }, 'search_web_failed');
       return empty;
     } finally {
       clearTimeout(timer);
@@ -144,4 +152,5 @@ export const searchWebTool: ToolDefinition<SearchWebArgs, SearchWebResult> = {
       .trim();
     return { query: cleaned || prompt };
   },
+  flag: { name: 'TOOL_SEARCH_WEB_ENABLED', default: true },
 };

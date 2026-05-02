@@ -1,3 +1,4 @@
+import { Anthropic } from '@anthropic-ai/sdk';
 import { Prisma } from '@prisma/client';
 import type { ErrorRequestHandler, RequestHandler } from 'express';
 import { ZodError } from 'zod';
@@ -17,6 +18,11 @@ const toAppError = (error: unknown): AppError => {
   if (error instanceof Prisma.PrismaClientKnownRequestError) {
     if (error.code === 'P2025') return new NotFoundError();
     if (error.code === 'P2002') return new ConflictError('Resource already exists');
+    if (error.code === 'P2003') return new ConflictError('Related record does not exist');
+  }
+
+  if (error instanceof Anthropic.APIError) {
+    return new AppError('AI_PROVIDER_ERROR', 503, 'AI provider unavailable');
   }
 
   return new AppError(
