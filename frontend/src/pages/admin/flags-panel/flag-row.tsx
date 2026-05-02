@@ -3,6 +3,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { MaterialIcon } from '@/components/ui/material-icon';
 import { cn } from '@/lib/utils';
+import { useFlagsStore } from '@/store/flags-store';
 
 import type { FlagDescriptor } from '../flag-meta';
 import { TOOL_FLAGS } from '../flag-meta';
@@ -24,7 +25,15 @@ export const FlagRow = ({
   onClear,
 }: FlagRowProps): React.JSX.Element => {
   const definition = data.definitions[descriptor.name];
-  const liveValue = data.snapshot[descriptor.name];
+  // The admin endpoint's `data.snapshot` is **context-free** — just the
+  // catalog defaults, no rules applied. For an admin viewing a flag with a
+  // `userRole: 'admin'` rule (e.g. AI_TOOLS_ENABLED), that snapshot says
+  // OFF even though the flag is actually ON for them. Read from the global
+  // flags store instead — that's hydrated from /api/auth/me/flags so the
+  // value here matches the value the admin will see end-to-end. Fall back
+  // to the catalog default while the store is hydrating on cold mount.
+  const userFlags = useFlagsStore((s) => s.flags);
+  const liveValue = userFlags?.[descriptor.name] ?? data.snapshot[descriptor.name];
   // "customised" means the admin UI wrote a DB override for this flag.
   // Code defaults can ship rules too (role-aware admin overrides) — those
   // do NOT count as customisation, otherwise Clear-all would never make
