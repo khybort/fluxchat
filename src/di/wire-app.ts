@@ -6,6 +6,7 @@ import type { Logger } from '../infrastructure/logger/logger.js';
 import { AdminController } from '../modules/admin/adapters/http/admin.controller.js';
 import { buildAdminRouter } from '../modules/admin/adapters/http/admin.routes.js';
 import type { AdminUseCases } from '../modules/admin/application/use-cases/admin.use-cases.js';
+import { ClearAllFeatureFlagsUseCase } from '../modules/admin/application/use-cases/clear-all-feature-flags.use-case.js';
 import { ClearFeatureFlagUseCase } from '../modules/admin/application/use-cases/clear-feature-flag.use-case.js';
 import { EvaluateFeatureFlagUseCase } from '../modules/admin/application/use-cases/evaluate-feature-flag.use-case.js';
 import { ListFeatureFlagsUseCase } from '../modules/admin/application/use-cases/list-feature-flags.use-case.js';
@@ -16,6 +17,7 @@ import { AuthController } from '../modules/auth/adapters/http/auth.controller.js
 import { buildAuthRouters } from '../modules/auth/adapters/http/auth.routes.js';
 import { AuthTokenIssuer } from '../modules/auth/application/services/auth-token.issuer.js';
 import type { AuthUseCases } from '../modules/auth/application/use-cases/auth.use-cases.js';
+import { GetCurrentUserFlagsUseCase } from '../modules/auth/application/use-cases/get-current-user-flags.use-case.js';
 import { GetCurrentUserUseCase } from '../modules/auth/application/use-cases/get-current-user.use-case.js';
 import { LoginUserUseCase } from '../modules/auth/application/use-cases/login-user.use-case.js';
 import { RegisterUserUseCase } from '../modules/auth/application/use-cases/register-user.use-case.js';
@@ -131,6 +133,7 @@ export const wireApp = (deps: AppDependencies): WiredApp => {
     register: new RegisterUserUseCase(repos.users, tokenIssuer),
     login: new LoginUserUseCase(repos.users, tokenIssuer),
     getCurrentUser: new GetCurrentUserUseCase(repos.users, tokenIssuer),
+    getCurrentUserFlags: new GetCurrentUserFlagsUseCase(flags),
   };
 
   // Admin use case bag.
@@ -138,6 +141,7 @@ export const wireApp = (deps: AppDependencies): WiredApp => {
     listFlags: new ListFeatureFlagsUseCase(flags),
     updateFlag: new UpdateFeatureFlagUseCase(flags),
     clearFlag: new ClearFeatureFlagUseCase(flags),
+    clearAllFlags: new ClearAllFeatureFlagsUseCase(flags),
     reloadFlags: new ReloadFeatureFlagsUseCase(flags),
     evaluateFlag: new EvaluateFeatureFlagUseCase(flags),
     listUsers: new ListUsersAdminUseCase(repos.users),

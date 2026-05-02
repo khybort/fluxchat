@@ -11,6 +11,7 @@ import { cn } from '@/lib/utils';
 import { useAuthStore } from '@/store/auth-store';
 
 import { Section, SelectField } from './section';
+import { UserPicker } from '../user-picker';
 
 const CLIENT_TYPES: ClientType[] = ['web', 'mobile', 'desktop'];
 const USER_ROLES: UserRole[] = ['user', 'admin'];
@@ -23,6 +24,7 @@ const USER_ROLES: UserRole[] = ['user', 'admin'];
 export const TestAsUserPanel = ({ name }: { name: FlagName }): React.JSX.Element => {
   const token = useAuthStore((s) => s.token) ?? '';
   const [userId, setUserId] = useState('');
+  const [userEmail, setUserEmail] = useState<string | null>(null);
   const [userRole, setUserRole] = useState<UserRole | ''>('');
   const [clientType, setClientType] = useState<ClientType | ''>('');
   const [result, setResult] = useState<{ value: boolean | number } | null>(null);
@@ -49,18 +51,40 @@ export const TestAsUserPanel = ({ name }: { name: FlagName }): React.JSX.Element
   return (
     <Section
       title="Test as user"
-      subtitle="Server-side evaluation against a synthetic context — preview rule + percentage outcomes before saving."
+      subtitle="Dry-run preview — pick a real user (or build a synthetic context) and see exactly what value the rules + percentage engine would return for them. Nothing is persisted."
     >
-      <div className="space-y-2 rounded-md border bg-muted/20 p-3">
+      <div className="space-y-3 rounded-md border bg-muted/20 p-3">
         <div className="flex items-center gap-2 text-xs text-muted-foreground">
           <MaterialIcon name="account_circle" className="h-4 w-4" />
-          <span>Synthetic context</span>
+          <span>Pick a real user — auto-fills userId + role</span>
+        </div>
+        <UserPicker
+          selectedId={userId || null}
+          selectedEmail={userEmail}
+          onPick={(user) => {
+            setUserId(user.id);
+            setUserEmail(user.email);
+            setUserRole(user.role);
+          }}
+          onClear={() => {
+            setUserId('');
+            setUserEmail(null);
+            setUserRole('');
+          }}
+        />
+
+        <div className="flex items-center gap-2 pt-1 text-xs text-muted-foreground">
+          <MaterialIcon name="tune" className="h-4 w-4" />
+          <span>Or override / synthesize the context manually</span>
         </div>
         <div className="grid grid-cols-3 gap-2">
           <Input
             placeholder="userId"
             value={userId}
-            onChange={(e) => setUserId(e.target.value)}
+            onChange={(e) => {
+              setUserId(e.target.value);
+              setUserEmail(null);
+            }}
             className="h-8 text-sm"
           />
           <SelectField
@@ -90,6 +114,7 @@ export const TestAsUserPanel = ({ name }: { name: FlagName }): React.JSX.Element
         <ResultDisplay
           result={result}
           userId={userId}
+          userEmail={userEmail}
           userRole={userRole}
           clientType={clientType}
         />
@@ -101,6 +126,7 @@ export const TestAsUserPanel = ({ name }: { name: FlagName }): React.JSX.Element
 interface ResultDisplayProps {
   result: { value: boolean | number } | null;
   userId: string;
+  userEmail: string | null;
   userRole: UserRole | '';
   clientType: ClientType | '';
 }
@@ -108,10 +134,12 @@ interface ResultDisplayProps {
 const ResultDisplay = ({
   result,
   userId,
+  userEmail,
   userRole,
   clientType,
 }: ResultDisplayProps): React.JSX.Element | null => {
   if (!result) return null;
+  const userLabel = userEmail ? `user="${userEmail}"` : userId ? `userId="${userId}"` : 'no userId';
   if (typeof result.value === 'boolean') {
     return (
       <div
@@ -129,7 +157,7 @@ const ResultDisplay = ({
         )}
         <span className="font-mono font-semibold">{String(result.value)}</span>
         <span className="text-xs opacity-70">
-          for {userId ? `userId="${userId}"` : 'no userId'}
+          for {userLabel}
           {userRole ? ` · role=${userRole}` : ''}
           {clientType ? ` · client=${clientType}` : ''}
         </span>

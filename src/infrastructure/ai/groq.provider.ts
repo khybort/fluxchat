@@ -120,7 +120,10 @@ export class GroqProvider implements IAiProvider {
       throw error;
     }
 
-    const usage = await result.usage.catch(() => undefined);
+    const usage = await result.usage.catch((err: unknown) => {
+      this.logger.pino.warn({ err, provider: this.kind }, 'usage_parse_failed');
+      return undefined;
+    });
     yield {
       type: 'done',
       fullText,

@@ -119,7 +119,13 @@ export const useChatStream = ({
           return null;
         });
       } catch (err: unknown) {
-        if (err instanceof DOMException && err.name === 'AbortError') return;
+        if (err instanceof DOMException && err.name === 'AbortError') {
+          // User-initiated cancel — give them positive feedback so they know
+          // the click took. Silent return left the spinner-stop ambiguous.
+          toast.info('Request cancelled');
+          setPending(null);
+          return;
+        }
         const message = err instanceof ApiError ? err.message : errorLabel;
         toast.error(message);
         setPending(null);

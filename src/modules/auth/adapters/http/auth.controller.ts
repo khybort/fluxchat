@@ -2,6 +2,7 @@ import type { Request, Response } from 'express';
 
 import type { LoginBody, RegisterBody } from './auth.dto.js';
 import { UnauthorizedError } from '../../../../shared/errors/app-error.js';
+import { flagContextFrom } from '../../../../shared/feature-flags/context.js';
 import type { AuthUseCases } from '../../application/use-cases/auth.use-cases.js';
 
 export class AuthController {
@@ -30,5 +31,11 @@ export class AuthController {
     if (!req.user) throw new UnauthorizedError();
     const user = await this.useCases.getCurrentUser.execute({ userId: req.user.id });
     res.status(200).json({ user });
+  };
+
+  public meFlags = async (req: Request, res: Response): Promise<void> => {
+    if (!req.user) throw new UnauthorizedError();
+    const result = await this.useCases.getCurrentUserFlags.execute(flagContextFrom(req));
+    res.status(200).json(result);
   };
 }

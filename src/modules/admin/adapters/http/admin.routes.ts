@@ -42,6 +42,17 @@ export const buildAdminRouter = (
     asyncHandler(controller.updateFlag),
   );
 
+  // Global "Clear all overrides" — registered BEFORE `/flags/:name` so the
+  // bare path is matched first. Express picks the first matching route, and
+  // since `:name` requires a non-empty path segment the two never collide
+  // even if the order were swapped — we still keep this above for clarity.
+  router.delete(
+    '/flags',
+    requireRole('admin'),
+    rateLimiter.perRoute({ keyBy: 'user' }),
+    asyncHandler(controller.clearAllFlags),
+  );
+
   router.delete(
     '/flags/:name',
     requireRole('admin'),

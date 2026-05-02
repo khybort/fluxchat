@@ -7,6 +7,7 @@ import {
   ErrorResponseSchema,
   PUBLIC_SECURITY,
 } from '../../../../shared/openapi/security.js';
+import { FeatureFlagSnapshotSchema } from '../../../healthz.openapi.js';
 
 const AuthUserSchema = z
   .object({
@@ -33,6 +34,10 @@ const AuthResponseSchema = z
 
 const MeResponseSchema = z.object({ user: AuthUserSchema }).openapi('MeResponse');
 
+const MeFlagsResponseSchema = z
+  .object({ flags: FeatureFlagSnapshotSchema })
+  .openapi('MeFlagsResponse');
+
 const RegisterRequestSchema = RegisterBodySchema.openapi('RegisterRequest', {
   example: { email: 'ada@example.com', password: 'correct-horse-battery-staple', name: 'Ada' },
 });
@@ -45,6 +50,7 @@ openApiRegistry.register('RegisterRequest', RegisterRequestSchema);
 openApiRegistry.register('LoginRequest', LoginRequestSchema);
 openApiRegistry.register('AuthResponse', AuthResponseSchema);
 openApiRegistry.register('MeResponse', MeResponseSchema);
+openApiRegistry.register('MeFlagsResponse', MeFlagsResponseSchema);
 
 const errorResponse = (description: string) => ({
   description,
@@ -112,6 +118,24 @@ openApiRegistry.registerPath({
     200: {
       description: 'The user record for the JWT subject.',
       content: { 'application/json': { schema: MeResponseSchema } },
+    },
+    401: errorResponse('Missing/invalid JWT or App Check token.'),
+    429: errorResponse('Rate limited (per-user).'),
+  },
+});
+
+openApiRegistry.registerPath({
+  method: 'get',
+  path: '/api/auth/me/flags',
+  tags: ['Auth'],
+  summary: 'Get feature flags evaluated for the current user',
+  description:
+    'Per-user evaluation of every registered flag. Differs from `/healthz`, which serves baseline defaults — this endpoint applies rules + percentage rollouts using the JWT subject + role + client type.',
+  security: AUTHED_SECURITY,
+  responses: {
+    200: {
+      description: 'Snapshot of evaluated flag values for the caller.',
+      content: { 'application/json': { schema: MeFlagsResponseSchema } },
     },
     401: errorResponse('Missing/invalid JWT or App Check token.'),
     429: errorResponse('Rate limited (per-user).'),

@@ -48,11 +48,20 @@ export class UserPrismaRepository implements IUserRepository {
     return row ? toCredentials(row) : null;
   }
 
-  public async findAll({ cursor, limit }: ListUsersParams): Promise<User[]> {
+  public async findAll({ cursor, limit, q }: ListUsersParams): Promise<User[]> {
+    const where = q
+      ? {
+          OR: [
+            { email: { contains: q, mode: 'insensitive' as const } },
+            { name: { contains: q, mode: 'insensitive' as const } },
+          ],
+        }
+      : undefined;
     const rows = await this.prisma.client.user.findMany({
       take: limit + 1,
       ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
-      orderBy: { createdAt: 'desc' },
+      ...(where ? { where } : {}),
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
     });
     return rows.map(toDomainUser);
   }

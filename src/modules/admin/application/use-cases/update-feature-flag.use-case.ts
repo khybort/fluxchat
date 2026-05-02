@@ -33,6 +33,7 @@ export class UpdateFeatureFlagUseCase implements IUseCase<
     return {
       definitions: this.flags.definitions(),
       snapshot: this.flags.snapshot(),
+      overriddenNames: this.flags.overriddenNames(),
     };
   }
 }

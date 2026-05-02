@@ -35,19 +35,36 @@ export class StreamingCompletionStrategy implements ICompletionStrategy {
     );
 
     let fullText = '';
-    for await (const event of upstream) {
-      if (event.type === 'delta') {
-        fullText += event.text;
-      } else if (event.type === 'done') {
-        // Persist before forwarding `done` so clients that close the stream
-        // immediately after still see the assistant message in history.
-        await input.onComplete(event.fullText || fullText, {
-          ...(event.usage ? { usage: event.usage } : {}),
+    let persisted = false;
+    try {
+      for await (const event of upstream) {
+        if (event.type === 'delta') {
+          fullText += event.text;
+        } else if (event.type === 'done') {
+          // Persist before forwarding `done` so clients that close the stream
+          // immediately after still see the assistant message in history.
+          await input.onComplete(event.fullText || fullText, {
+            ...(event.usage ? { usage: event.usage } : {}),
+            provider: this.ai.kind,
+            model: this.ai.model,
+          });
+          persisted = true;
+        }
+        yield event;
+      }
+    } catch (err: unknown) {
+      // Mid-stream failure (provider error, abort, network drop). If any text
+      // already streamed, save it as the assistant message so the chat
+      // history reflects what the user actually saw — losing it would be
+      // worse than a partial save. Re-throw so the controller still emits
+      // the SSE error frame.
+      if (!persisted && fullText.length > 0) {
+        await input.onComplete(fullText, {
           provider: this.ai.kind,
           model: this.ai.model,
         });
       }
-      yield event;
+      throw err;
     }
   }
 }

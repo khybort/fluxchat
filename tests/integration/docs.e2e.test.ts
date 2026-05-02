@@ -24,6 +24,7 @@ describe('OpenAPI documentation endpoints', () => {
     expect(paths).toEqual([
       '/api/auth/login',
       '/api/auth/me',
+      '/api/auth/me/flags',
       '/api/auth/register',
       '/api/chats',
       '/api/chats/archived',

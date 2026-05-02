@@ -8,6 +8,7 @@ import type { User } from '../../../user/domain/user.types.js';
 export interface ListUsersAdminInput {
   cursor?: string | undefined;
   limit?: number | undefined;
+  q?: string | undefined;
 }
 
 /**
@@ -20,7 +21,7 @@ export class ListUsersAdminUseCase implements IUseCase<ListUsersAdminInput, Page
 
   public async execute(input: ListUsersAdminInput): Promise<PageResult<User>> {
     const limit = input.limit ?? PAGINATION.DEFAULT_LIMIT;
-    const rows = await this.users.findAll({ cursor: input.cursor, limit });
+    const rows = await this.users.findAll({ cursor: input.cursor, limit, q: input.q });
     return buildPagedResult(rows, limit, (r) => r.id);
   }
 }

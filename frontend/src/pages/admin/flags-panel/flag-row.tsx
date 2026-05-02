@@ -1,5 +1,3 @@
-import { useMemo } from 'react';
-
 import type { AdminFlagsResponse } from '@/api/types';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -27,15 +25,11 @@ export const FlagRow = ({
 }: FlagRowProps): React.JSX.Element => {
   const definition = data.definitions[descriptor.name];
   const liveValue = data.snapshot[descriptor.name];
-
-  const customised = useMemo(
-    () =>
-      Boolean(
-        (definition.rules && definition.rules.length > 0) ||
-        typeof definition.percentage === 'number',
-      ),
-    [definition],
-  );
+  // "customised" means the admin UI wrote a DB override for this flag.
+  // Code defaults can ship rules too (role-aware admin overrides) — those
+  // do NOT count as customisation, otherwise Clear-all would never make
+  // the badge disappear.
+  const customised = data.overriddenNames.includes(descriptor.name);
 
   return (
     <li

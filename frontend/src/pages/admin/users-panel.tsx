@@ -6,6 +6,7 @@ import { ApiError } from '@/api/client';
 import type { AdminUser } from '@/api/types';
 import { UserRoleBadge } from '@/components/admin/user-role-badge';
 import { Button } from '@/components/ui/button';
+import { ErrorCard } from '@/components/ui/error-card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn, initialsOf } from '@/lib/utils';
 import { useAuthStore } from '@/store/auth-store';
@@ -23,10 +24,12 @@ export const UsersPanel = (): React.JSX.Element => {
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [editing, setEditing] = useState<AdminUser | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   const loadFirstPage = useCallback(async () => {
     if (!token) return;
     setLoading(true);
+    setError(null);
     try {
       const res = await listAdminUsers(token, { limit: PAGE_SIZE });
       setUsers(res.data);
@@ -34,7 +37,10 @@ export const UsersPanel = (): React.JSX.Element => {
       setHasMore(res.pagination.hasMore);
     } catch (err) {
       const message = err instanceof ApiError ? err.message : 'Failed to load users';
-      toast.error(message);
+      // Inline error replaces the skeleton so users see something actionable
+      // instead of staring at it forever. "Load more" failures stay as toasts
+      // since the existing list is still useful.
+      setError(message);
     } finally {
       setLoading(false);
     }
@@ -61,6 +67,11 @@ export const UsersPanel = (): React.JSX.Element => {
   };
 
   if (loading) return <UserListSkeleton />;
+  if (error) {
+    return (
+      <ErrorCard title="Couldn't load users" message={error} onRetry={() => void loadFirstPage()} />
+    );
+  }
   if (users.length === 0) {
     return (
       <div className="rounded-lg border border-dashed bg-muted/30 px-6 py-12 text-center text-sm text-muted-foreground">

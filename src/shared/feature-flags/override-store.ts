@@ -25,6 +25,9 @@ export interface IFlagOverrideStore {
 
   /** Delete an override (the flag falls back to file/env defaults). */
   remove(name: string): Promise<void>;
+
+  /** Delete every override row. Used by the admin "Clear all" action. */
+  removeAll(): Promise<void>;
 }
 
 /**
@@ -45,5 +48,9 @@ export class InMemoryFlagOverrideStore implements IFlagOverrideStore {
 
   public async remove(name: string): Promise<void> {
     this.rows.delete(name);
+  }
+
+  public async removeAll(): Promise<void> {
+    this.rows.clear();
   }
 }

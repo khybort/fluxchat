@@ -38,4 +38,8 @@ export class PrismaFlagOverrideStore implements IFlagOverrideStore {
   public async remove(name: string): Promise<void> {
     await this.prisma.client.featureFlagOverride.deleteMany({ where: { name } });
   }
+
+  public async removeAll(): Promise<void> {
+    await this.prisma.client.featureFlagOverride.deleteMany({});
+  }
 }

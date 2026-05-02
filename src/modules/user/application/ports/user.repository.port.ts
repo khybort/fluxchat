@@ -9,6 +9,8 @@ export interface CreateUserInput {
 export interface ListUsersParams {
   cursor: string | undefined;
   limit: number;
+  /** Case-insensitive substring filter on email or name. Empty/undefined disables filtering. */
+  q?: string | undefined;
 }
 
 /**

@@ -155,7 +155,13 @@ const buildRateLimitStore = (config: Config, logger: Logger): RateLimitWiring =>
   return {
     store: new RedisRateLimitStore(redis),
     shutdown: async () => {
-      await redis.quit().catch(() => undefined);
+      await redis.quit().catch((err: unknown) => {
+        // Redis QUIT can fail if the connection is already gone (e.g.
+        // Vercel killed the function). Log and continue — the process is
+        // shutting down anyway, but a silent swallow hides real connection
+        // bugs in non-shutdown paths.
+        logger.pino.warn({ err }, 'redis_quit_failed');
+      });
     },
   };
 };

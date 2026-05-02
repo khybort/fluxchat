@@ -34,6 +34,12 @@ export const clearAdminFlag = (token: string, name: FlagName): Promise<AdminFlag
     token,
   });
 
+export const clearAllAdminFlags = (token: string): Promise<AdminFlagsResponse> =>
+  apiFetch<AdminFlagsResponse>('/api/admin/flags', {
+    method: 'DELETE',
+    token,
+  });
+
 export const reloadAdminFlags = (
   token: string,
 ): Promise<{ status: string; snapshot: FeatureFlagsSnapshot }> =>
@@ -52,11 +58,12 @@ export const evaluateAdminFlag = (
 
 export const listAdminUsers = (
   token: string,
-  params: { cursor?: string; limit?: number } = {},
+  params: { cursor?: string; limit?: number; q?: string } = {},
 ): Promise<PageResult<AdminUser>> => {
   const qs = new URLSearchParams();
   if (params.cursor) qs.set('cursor', params.cursor);
   if (params.limit) qs.set('limit', String(params.limit));
+  if (params.q) qs.set('q', params.q);
   const suffix = qs.toString() ? `?${qs.toString()}` : '';
   return apiFetch<PageResult<AdminUser>>(`/api/admin/users${suffix}`, { token });
 };

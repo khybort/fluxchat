@@ -1,5 +1,11 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 
+import type { IAiProvider } from '../../src/infrastructure/ai/ai.provider.js';
+import type {
+  CompletionRequest,
+  CompletionResultJson,
+  CompletionStreamEvent,
+} from '../../src/infrastructure/ai/ai.types.js';
 import { MockAiProvider } from '../../src/infrastructure/ai/mock.provider.js';
 import { CompletionStrategyFactory } from '../../src/modules/chat/application/strategies/completion-strategy.factory.js';
 import { JsonCompletionStrategy } from '../../src/modules/chat/application/strategies/json-completion.strategy.js';
@@ -94,5 +100,114 @@ describe('StreamingCompletionStrategy', () => {
     expect(types).toContain('delta');
     expect(types[types.length - 1]).toBe('done');
     expect(persisted.length).toBeGreaterThan(0);
+  });
+
+  it('persists the partial text when the upstream stream throws mid-flight', async () => {
+    const flags = FeatureFlagService.getInstance();
+    flags.set('AI_TOOLS_ENABLED', false);
+
+    // Provider that yields three deltas, then throws — emulates a provider
+    // SDK error after some tokens already streamed to the client.
+    const flakyProvider: IAiProvider = {
+      kind: 'mock',
+      model: 'mock-flaky',
+      // eslint-disable-next-line @typescript-eslint/require-await
+      async complete(_req: CompletionRequest): Promise<CompletionResultJson> {
+        return { text: '', toolCalls: [] };
+      },
+      // eslint-disable-next-line require-yield
+      async *stream(): AsyncIterable<CompletionStreamEvent> {
+        yield { type: 'thinking' };
+        yield { type: 'delta', text: 'Hel' };
+        yield { type: 'delta', text: 'lo' };
+        yield { type: 'delta', text: ', wo' };
+        throw new Error('provider exploded');
+      },
+    };
+
+    const strategy = new StreamingCompletionStrategy(
+      flakyProvider,
+      flags,
+      new AbortController().signal,
+    );
+
+    let persisted = '';
+    let persistMeta: { provider?: string | undefined; model?: string | undefined } = {};
+    const result = strategy.execute({
+      history: [],
+      prompt: 'partial please',
+      onComplete: async (t, meta) => {
+        persisted = t;
+        if (meta) persistMeta = { provider: meta.provider, model: meta.model };
+      },
+    });
+
+    if (result.kind !== 'stream') throw new Error('expected stream result');
+
+    const collected: CompletionStreamEvent[] = [];
+    let thrown: unknown = null;
+    try {
+      for await (const event of result.events) {
+        collected.push(event);
+      }
+    } catch (err: unknown) {
+      thrown = err;
+    }
+
+    expect(thrown).toBeInstanceOf(Error);
+    expect((thrown as Error).message).toBe('provider exploded');
+    expect(persisted).toBe('Hello, wo');
+    expect(persistMeta.provider).toBe('mock');
+    expect(persistMeta.model).toBe('mock-flaky');
+    // Re-throw must not double-persist: the success path's `done` event was
+    // never reached, so onComplete should fire exactly once (in the catch).
+    expect(collected.filter((e) => e.type === 'done')).toHaveLength(0);
+  });
+
+  it('does not persist when the stream throws before any delta', async () => {
+    const flags = FeatureFlagService.getInstance();
+    flags.set('AI_TOOLS_ENABLED', false);
+
+    const earlyFailProvider: IAiProvider = {
+      kind: 'mock',
+      model: 'mock-early',
+      // eslint-disable-next-line @typescript-eslint/require-await
+      async complete(_req: CompletionRequest): Promise<CompletionResultJson> {
+        return { text: '', toolCalls: [] };
+      },
+      // eslint-disable-next-line require-yield
+      async *stream(): AsyncIterable<CompletionStreamEvent> {
+        throw new Error('upstream 503');
+      },
+    };
+
+    const strategy = new StreamingCompletionStrategy(
+      earlyFailProvider,
+      flags,
+      new AbortController().signal,
+    );
+
+    let persistCalled = false;
+    const result = strategy.execute({
+      history: [],
+      prompt: 'fail fast',
+      onComplete: async () => {
+        persistCalled = true;
+      },
+    });
+
+    if (result.kind !== 'stream') throw new Error('expected stream result');
+
+    let thrown: unknown = null;
+    try {
+      for await (const _event of result.events) {
+        // drain
+      }
+    } catch (err: unknown) {
+      thrown = err;
+    }
+
+    expect(thrown).toBeInstanceOf(Error);
+    expect(persistCalled).toBe(false);
   });
 });

@@ -61,6 +61,8 @@ export const EvaluateFlagBodySchema = z.object({
 export const ListUsersQuerySchema = z.object({
   cursor: z.string().optional(),
   limit: z.coerce.number().int().min(10).max(100).optional(),
+  /** Case-insensitive substring match on email or name. Trimmed; ignored when blank. */
+  q: z.string().trim().min(1).max(100).optional(),
 });
 
 export type FlagDefinitionDto = z.infer<typeof FlagDefinitionSchema>;

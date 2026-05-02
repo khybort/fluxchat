@@ -1,3 +1,5 @@
+import { useAuthStore } from '@/store/auth-store';
+
 import type { ApiErrorBody } from './types';
 
 const API_URL = (import.meta.env.VITE_API_URL as string | undefined)?.replace(/\/$/, '') ?? '';
@@ -71,6 +73,23 @@ const parseError = async (res: Response): Promise<ApiError> => {
   return new ApiError(res.status, code, message, body?.error?.details);
 };
 
+/**
+ * Treat a 401 from any authenticated call as session-ended: clear the auth
+ * store and bounce to /login. Without this, individual call sites had to
+ * remember to handle it (and most didn't), so a stale JWT would leave the
+ * user on a half-broken page instead of taking them somewhere they can
+ * recover. Skip the redirect on the auth pages so login/register can show
+ * their own validation errors, and skip when no token was attached (public
+ * routes like /api/auth/login fail App-Check with 401 too).
+ */
+const handleSessionExpired = (): void => {
+  useAuthStore.getState().clear();
+  if (typeof window === 'undefined') return;
+  const path = window.location.pathname;
+  if (path === '/login' || path === '/register') return;
+  window.location.assign('/login');
+};
+
 export const apiFetch = async <T>(path: string, options: RequestOptions = {}): Promise<T> => {
   const { body, token, json = true, headers, ...rest } = options;
 
@@ -89,6 +108,9 @@ export const apiFetch = async <T>(path: string, options: RequestOptions = {}): P
   });
 
   if (!res.ok) {
+    if (res.status === 401 && token) {
+      handleSessionExpired();
+    }
     throw await parseError(res);
   }
 

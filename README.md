@@ -245,7 +245,7 @@ Evaluation order per `flags.get(name, ctx)` call:
 2. **Percentage** — boolean flags only. The user is bucketed via `sha1(flagName + userId) % 100`, deterministic across runs, so a user "in" the rollout stays in. Different flags use different buckets so rollouts don't pile on the same users.
 3. **Default** — fallback.
 
-Context fields are sourced from [`flagContextFrom(req)`](./src/shared/feature-flags/context.ts): `userId`, `clientType`, `userRole`. `plan` is reserved for a future subscription-tier hook. A complete sample lives at [`flags.example.json`](./flags.example.json).
+Context fields are sourced from [`flagContextFrom(req)`](./src/shared/feature-flags/context.ts): `userId`, `clientType`, `userRole`. `plan` is reserved for a future subscription-tier hook. A complete sample lives at [`flags.example.json`](./flags.example.json). `userId`-targeted rules are how you toggle a flag for one specific person — those entries are inserted via the admin UI's **Users** tab (see [Admin UI](#admin-ui-adminflags) below) rather than hand-edited.
 
 `/healthz` returns the **evaluated default** snapshot only — no rule structure leaks publicly. Ops surfaces hit `GET /admin/flags` (token-gated) for the rich form.
 
@@ -287,23 +287,54 @@ curl -s -H "x-admin-token: $ADMIN_TOKEN" http://localhost:3000/admin/flags | jq
 
 Admin-role users see a "Feature flags" entry in the user dropdown that opens
 [`/admin/flags`](https://fluxchat-web-ecru.vercel.app/admin/flags) — a
-dashboard for editing flag definitions live, no redeploy required:
+two-tab dashboard for editing flag definitions live, no redeploy required.
 
-- Toggle defaults, drag the rollout-percentage slider, add/remove segment rules.
-- "Test as user" panel below the editor evaluates against a synthetic
-  `{ userId, userRole, clientType }` context server-side, so the bucket-hash
-  semantics stay single-source-of-truth.
-- "Reload" button triggers `POST /api/admin/flags/reload` — pulls the latest
-  state from the DB + file + env into the live in-memory snapshot.
+**Feature flags tab** — per-flag editor:
+- Toggle defaults, drag the rollout-percentage slider, add/remove `userRole`
+  / `clientType` rules. Rules are walked top-to-bottom; first match wins.
+- **Test as user** panel below the editor: dry-run preview that evaluates
+  the flag against a synthetic context server-side (`POST
+  /api/admin/flags/:name/evaluate`), so the bucket-hash semantics stay
+  single-source-of-truth. The user picker (debounced search across email +
+  name) auto-fills `userId` and `userRole` so admins don't need to know
+  raw UUIDs. Nothing is persisted — pure preview. Workflow: edit a rule →
+  pick the target user → Evaluate → confirm the engine returns the value
+  you expect → Save.
+- **Clear all overrides** button at the top — wipes every row in
+  `feature_flag_overrides` in one shot (`DELETE /api/admin/flags`). Each
+  flag falls back to its file/env/code default. Disabled when nothing is
+  customised.
+- **Reload** button (`POST /api/admin/flags/reload`) re-reads DB + file +
+  env into the in-memory snapshot.
+- The **customised** badge means "this flag has a DB override row". Code
+  defaults can ship rules too (admins get `AI_TOOLS_ENABLED=true` via a
+  baked-in `userRole: 'admin'` rule in
+  [flag-defaults.ts](./src/shared/feature-flags/flag-defaults.ts)) — those
+  do **not** count as customisation, so the badge correctly disappears
+  after Clear-all.
+
+**Users tab** — per-user flag overrides:
+- Paginated user list. Click "Override flags" on a user → dialog with a
+  toggle per flag. Saving inserts (or updates) a rule of shape
+  `{ if: { userId }, value }` at the top of that flag's `rules` array, so
+  per-user precedence beats per-role / per-client.
+- This is how you target one specific user — the rule editor in the
+  Feature flags tab only exposes `userRole` and `clientType` predicates.
 
 Edits persist in the `feature_flag_overrides` Postgres table (one row per
 flag, JSON `definition` + `updatedBy` audit). The DB layer wins over the
 JSON file, which wins over env defaults — so an admin UI edit always beats
 a static deploy artifact.
 
-To grant admin: update the `users.role` column to `admin` in Postgres
-(future: an admin "manage users" surface). The JWT mints with the role
-baked in on next login.
+**Frontend learns per-user values via `GET /api/auth/me/flags`** —
+authenticated callers receive a snapshot evaluated against their own
+`userId` + role + clientType, distinct from the public `/healthz` snapshot
+which only carries baseline defaults. The store re-fetches on login,
+logout, and tab focus so admin edits propagate to the affected user's UI
+without manual refresh.
+
+To grant admin: update the `users.role` column to `admin` in Postgres. The
+JWT mints with the role baked in on next login.
 
 ### Multi-instance consistency (known limitation)
 

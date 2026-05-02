@@ -1,5 +1,6 @@
 import { Anthropic } from '@anthropic-ai/sdk';
 import { Prisma } from '@prisma/client';
+import { APICallError } from 'ai';
 import type { Request, Response } from 'express';
 import { describe, expect, it, vi } from 'vitest';
 import type { ZodError } from 'zod';
@@ -126,6 +127,26 @@ describe('errorHandler', () => {
       undefined,
     );
     errorHandler(apiError, buildReq(), res, vi.fn());
+    expect(res.status).toHaveBeenCalledWith(503);
+    expect(res.json).toHaveBeenCalledWith(
+      expect.objectContaining({
+        error: expect.objectContaining({ code: 'AI_PROVIDER_ERROR' }),
+      }),
+    );
+  });
+
+  it('maps Vercel AI SDK APICallError (Groq/OpenAI path) to 503 AI_PROVIDER_ERROR', () => {
+    const res = buildRes();
+    const apiCallError = new APICallError({
+      message: 'rate limited',
+      url: 'https://api.groq.com/openai/v1/chat/completions',
+      requestBodyValues: {},
+      statusCode: 429,
+      responseHeaders: {},
+      responseBody: '{"error":"rate_limited"}',
+      isRetryable: true,
+    });
+    errorHandler(apiCallError, buildReq(), res, vi.fn());
     expect(res.status).toHaveBeenCalledWith(503);
     expect(res.json).toHaveBeenCalledWith(
       expect.objectContaining({

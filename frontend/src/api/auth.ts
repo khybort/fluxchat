@@ -1,5 +1,5 @@
 import { apiFetch } from './client';
-import type { AuthResponse, MeResponse } from './types';
+import type { AuthResponse, FeatureFlagsSnapshot, MeResponse } from './types';
 
 export const register = (input: {
   email: string;
@@ -13,3 +13,6 @@ export const login = (input: { email: string; password: string }): Promise<AuthR
 
 export const getMe = (token: string): Promise<MeResponse> =>
   apiFetch<MeResponse>('/api/auth/me', { method: 'GET', token });
+
+export const getMyFlags = (token: string): Promise<{ flags: FeatureFlagsSnapshot }> =>
+  apiFetch<{ flags: FeatureFlagsSnapshot }>('/api/auth/me/flags', { method: 'GET', token });

@@ -28,7 +28,7 @@ export class ChatPrismaRepository implements IChatRepository {
       where: { userId, deletedAt: null, archivedAt: { not: null } },
       take: params.limit + 1,
       ...(params.cursor ? { cursor: { id: params.cursor }, skip: 1 } : {}),
-      orderBy: [{ archivedAt: 'desc' }, { id: 'desc' }],
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
     });
     return rows.map(toDomainChat);
   }

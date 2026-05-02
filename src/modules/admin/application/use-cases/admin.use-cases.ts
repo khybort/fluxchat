@@ -19,6 +19,7 @@ export interface AdminUseCases {
   listFlags: IUseCase<void, ListFeatureFlagsOutput>;
   updateFlag: IUseCase<UpdateFeatureFlagInput, ListFeatureFlagsOutput>;
   clearFlag: IUseCase<ClearFeatureFlagInput, ListFeatureFlagsOutput>;
+  clearAllFlags: IUseCase<void, ListFeatureFlagsOutput>;
   reloadFlags: IUseCase<void, ReloadFeatureFlagsOutput>;
   evaluateFlag: IUseCase<EvaluateFeatureFlagInput, EvaluateFeatureFlagOutput>;
   listUsers: IUseCase<ListUsersAdminInput, PageResult<User>>;

@@ -123,3 +123,53 @@ describe('GET /api/auth/me', () => {
     expect(res.body.user.name).toBe('Me');
   });
 });
+
+describe('GET /api/auth/me/flags', () => {
+  let h: TestAppHandles;
+
+  beforeEach(() => {
+    h = buildTestApp();
+  });
+
+  it('returns 401 without a JWT', async () => {
+    const res = await request(h.app).get('/api/auth/me/flags').set(h.appCheckHeaders());
+    expect(res.status).toBe(401);
+  });
+
+  it('evaluates per-user rules for the calling user', async () => {
+    // Admin sets a rule targeting just user-a; user-b must not match.
+    await request(h.app)
+      .patch('/api/admin/flags/AI_TOOLS_ENABLED')
+      .set(h.adminHeaders())
+      .send({
+        default: false,
+        rules: [{ if: { userId: 'user-a' }, value: true }],
+      });
+
+    const aRes = await request(h.app).get('/api/auth/me/flags').set(h.authHeaders('user-a'));
+    expect(aRes.status).toBe(200);
+    expect(aRes.body.flags.AI_TOOLS_ENABLED).toBe(true);
+
+    const bRes = await request(h.app).get('/api/auth/me/flags').set(h.authHeaders('user-b'));
+    expect(bRes.status).toBe(200);
+    expect(bRes.body.flags.AI_TOOLS_ENABLED).toBe(false);
+  });
+
+  it('honors role-based rules via the JWT role claim', async () => {
+    await request(h.app)
+      .patch('/api/admin/flags/STREAMING_ENABLED')
+      .set(h.adminHeaders())
+      .send({
+        default: false,
+        rules: [{ if: { userRole: 'admin' }, value: true }],
+      });
+
+    const userRes = await request(h.app)
+      .get('/api/auth/me/flags')
+      .set(h.authHeaders('regular-user'));
+    expect(userRes.body.flags.STREAMING_ENABLED).toBe(false);
+
+    const adminRes = await request(h.app).get('/api/auth/me/flags').set(h.adminHeaders('admin-2'));
+    expect(adminRes.body.flags.STREAMING_ENABLED).toBe(true);
+  });
+});

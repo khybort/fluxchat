@@ -1,7 +1,9 @@
 import type { AuthResult, AuthUserView } from './auth.types.js';
+import type { GetCurrentUserFlagsOutput } from './get-current-user-flags.use-case.js';
 import type { GetCurrentUserInput } from './get-current-user.use-case.js';
 import type { LoginUserInput } from './login-user.use-case.js';
 import type { RegisterUserInput } from './register-user.use-case.js';
+import type { FlagContext } from '../../../../shared/feature-flags/feature-flag.types.js';
 import type { IUseCase } from '../../../../shared/use-case/use-case.interface.js';
 
 /**
@@ -13,4 +15,5 @@ export interface AuthUseCases {
   register: IUseCase<RegisterUserInput, AuthResult>;
   login: IUseCase<LoginUserInput, AuthResult>;
   getCurrentUser: IUseCase<GetCurrentUserInput, AuthUserView>;
+  getCurrentUserFlags: IUseCase<FlagContext, GetCurrentUserFlagsOutput>;
 }

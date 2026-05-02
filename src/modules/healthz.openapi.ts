@@ -2,7 +2,7 @@ import { z } from 'zod';
 
 import { openApiRegistry } from '../shared/openapi/registry.js';
 
-const FeatureFlagSnapshotSchema = z
+export const FeatureFlagSnapshotSchema = z
   .object({
     STREAMING_ENABLED: z.boolean(),
     PAGINATION_LIMIT: z.number().int(),

@@ -39,6 +39,13 @@ export class FeatureFlagService {
   private readonly filePath: string | undefined;
   private readonly logger: Logger;
   private overrideStore: IFlagOverrideStore = new InMemoryFlagOverrideStore();
+  /**
+   * Names of flags that have a row in the DB override store. Distinct from
+   * "has rules" — code defaults can also carry rules (e.g. role-aware
+   * admin overrides in FLAG_DEFAULTS), so the UI needs this to tell apart
+   * baked-in behaviour from admin-edited customisation.
+   */
+  private overriddenNamesSet: Set<FlagName> = new Set();
 
   private constructor(filePath: string | undefined, logger: Logger) {
     this.logger = logger;
@@ -113,13 +120,16 @@ export class FeatureFlagService {
     const previous = this.flags;
     const fromFile = this.readFile();
     let fromDb: Partial<FlagDefinitions> = {};
+    let dbKeys: string[] = [];
     try {
       const dbRows = await this.overrideStore.loadAll();
+      dbKeys = Object.keys(dbRows);
       fromDb = parseDefinitions(dbRows, this.logger);
     } catch (err: unknown) {
       this.logger.pino.error({ err }, 'feature_flag_db_overrides_failed');
     }
     this.flags = { ...this.defaults, ...fromFile, ...fromDb } as FlagDefinitions;
+    this.overriddenNamesSet = new Set(dbKeys.filter((k) => k in this.flags) as FlagName[]);
 
     const changed: Record<string, FlagValue> = {};
     for (const key of Object.keys(this.flags) as FlagName[]) {
@@ -156,6 +166,15 @@ export class FeatureFlagService {
   }
 
   /**
+   * Admin-only. Names of flags that currently have a DB override row. The
+   * admin UI uses this to render the "customised" badge — distinct from
+   * "definition has rules" because code defaults can ship rules too.
+   */
+  public overriddenNames(): FlagName[] {
+    return Array.from(this.overriddenNamesSet);
+  }
+
+  /**
    * Admin-only. Persists a new definition for `name` in the override store
    * and triggers a reload so all subsequent `get()` calls see the new value.
    * Throws if the definition fails parsing — controller maps that to 400.
@@ -172,6 +191,16 @@ export class FeatureFlagService {
   /** Admin-only. Removes the override for `name` (falls back to file/env). */
   public async clearOverride(name: FlagName): Promise<void> {
     await this.overrideStore.remove(name);
+    await this.reload();
+  }
+
+  /**
+   * Admin-only. Wipes every override row so all flags fall back to their
+   * file/env/code defaults. Useful as an emergency "kill all customisations"
+   * lever — single endpoint instead of N per-flag deletes.
+   */
+  public async clearAllOverrides(): Promise<void> {
+    await this.overrideStore.removeAll();
     await this.reload();
   }
 

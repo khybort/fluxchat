@@ -47,6 +47,12 @@ export class AdminController {
     res.status(200).json(result);
   };
 
+  public clearAllFlags = async (req: Request, res: Response): Promise<void> => {
+    ensureAdmin(req);
+    const result = await this.useCases.clearAllFlags.execute();
+    res.status(200).json(result);
+  };
+
   public reloadFlags = async (req: Request, res: Response): Promise<void> => {
     ensureAdmin(req);
     const result = await this.useCases.reloadFlags.execute();
@@ -70,6 +76,7 @@ export class AdminController {
     const result = await this.useCases.listUsers.execute({
       cursor: query.cursor,
       limit: query.limit,
+      q: query.q,
     });
     res.status(200).json(result);
   };

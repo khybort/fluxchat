@@ -33,8 +33,17 @@ export class InMemoryUserRepository implements IUserRepository {
     return this.rows.find((r) => r.email === email) ?? null;
   }
 
-  public async findAll({ cursor, limit }: ListUsersParams): Promise<User[]> {
-    const sorted = [...this.rows].sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+  public async findAll({ cursor, limit, q }: ListUsersParams): Promise<User[]> {
+    const filtered = q
+      ? this.rows.filter((r) => {
+          const needle = q.toLowerCase();
+          return (
+            r.email.toLowerCase().includes(needle) ||
+            (r.name?.toLowerCase().includes(needle) ?? false)
+          );
+        })
+      : this.rows;
+    const sorted = [...filtered].sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
     const startIdx = cursor ? sorted.findIndex((r) => r.id === cursor) + 1 : 0;
     return sorted.slice(startIdx, startIdx + limit + 1).map(toDomainUser);
   }

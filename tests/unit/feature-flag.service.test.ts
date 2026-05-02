@@ -79,6 +79,24 @@ describe('FeatureFlagService', () => {
     service.set('AI_TOOLS_ENABLED', true);
     expect(service.get('AI_TOOLS_ENABLED')).toBe(true);
   });
+
+  it('clearAllOverrides wipes every override and falls back to defaults', async () => {
+    const service = FeatureFlagService.getInstance();
+    await service.setOverride(
+      'STREAMING_ENABLED',
+      { default: false, rules: [{ if: { userId: 'alice' }, value: true }] },
+      'admin-test',
+    );
+    await service.setOverride('AI_TOOLS_ENABLED', { default: true, percentage: 50 }, 'admin-test');
+    expect(service.get('STREAMING_ENABLED')).toBe(false);
+    expect(service.definitions().AI_TOOLS_ENABLED?.percentage).toBe(50);
+
+    await service.clearAllOverrides();
+
+    expect(service.get('STREAMING_ENABLED')).toBe(true);
+    expect(service.definitions().STREAMING_ENABLED?.rules ?? []).toHaveLength(0);
+    expect(service.definitions().AI_TOOLS_ENABLED?.percentage).toBeUndefined();
+  });
 });
 
 describe('FeatureFlagService — context-aware evaluation', () => {

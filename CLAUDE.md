@@ -245,6 +245,43 @@ README.md
 - Blank line between groups.
 - ESLint `import/order` enforces this.
 
+### 4.5 Clean Code Principles: KISS, DRY, YAGNI
+
+These three are not slogans — they are tie-breakers when two designs look equally reasonable. When in doubt, pick the simpler one.
+
+**KISS — Keep It Simple, Stupid.** Solve the problem in front of you, not the family of problems it might one day belong to. Concretely: a use case like `ListChatsUseCase` ([src/modules/chat/application/use-cases/list-chats.use-case.ts](src/modules/chat/application/use-cases/list-chats.use-case.ts)) is a constructor + one `execute` method that clamps the limit, calls the repo, and returns `buildPagedResult`. It is not a class hierarchy. Don't add a `BaseUseCase`, a hook system, an event emitter, or a "context" object until a second use case proves the abstraction would read more clearly than direct code. **Two levels of nesting max** (already in §4) — if a function needs more, the abstraction is wrong, not the formatting.
+
+**DRY — Don't Repeat Yourself.** When the *same business rule* appears in two places, extract it. Cursor pagination is shared via `buildPagedResult` in [src/shared/pagination/cursor.ts](src/shared/pagination/cursor.ts); ownership checks are shared via `ChatAccessPolicy` in [src/modules/chat/application/policies/chat-access.policy.ts](src/modules/chat/application/policies/chat-access.policy.ts). New paginated endpoint? Reuse `buildPagedResult`. New endpoint that needs ownership enforcement? Inject `ChatAccessPolicy` — do not copy the `if (chat.userId !== userId) throw new NotFoundError()` block.
+
+**Counter-rule (important):** *don't DRY across module boundaries prematurely*. Two modules with code that looks similar today are usually evolving in different directions tomorrow. Wait for the **third** use site before extracting a shared helper, and only extract when the abstraction reads cleaner than the duplication. A shared helper that grows ad-hoc parameters (`(input, opts, mode, legacy)`) to satisfy three callers is worse than three honest copies. Coincidental similarity ≠ shared rule.
+
+**YAGNI — You Aren't Gonna Need It.** Don't write code for hypothetical futures. No `BaseRepository<T>` "in case we swap ORMs" — Prisma is the choice (§2). No generic `EventBus` "for later" — there is no consumer. No flag for "future multi-tenant support" — there is no tenant column. The §12 *rule of two changes* (adding a flag = new schema entry + new strategy, nothing else) is YAGNI for feature flags; this section makes the rule project-wide. **The trigger for adding an abstraction is "two real call sites that would each be cleaner with it" — not "I can imagine a third someday."**
+
+If a PR adds a class, helper, parameter, or config knob with no immediate caller, the reviewer will ask "what fails today without this?" If the answer is "nothing," it gets removed.
+
+### 4.6 No Magic Values
+
+Every literal that carries meaning lives in exactly one of the places below. Inline literals in use cases, controllers, services, strategies, policies, or middleware are forbidden — they're invisible to grep, drift between files, and hide intent.
+
+| Kind of value | Lives in | Example |
+|---|---|---|
+| Env-driven (changes per environment) | `Config.getInstance().values.*` via [src/config/config.ts](src/config/config.ts) + zod schema in [src/config/env.schema.ts](src/config/env.schema.ts) | `JWT_SECRET`, `ANTHROPIC_MODEL`, `DATABASE_URL` |
+| Business constants (same in every env) | `as const` groups in [src/shared/constants.ts](src/shared/constants.ts) | `PAGINATION.DEFAULT_LIMIT`, `LIMITED_HISTORY_COUNT`, `AUTH.BCRYPT_ROUNDS` |
+| Closed enums / unions | `as const` array + derived type, colocated with the constants group | `CLIENT_TYPES = ['web','mobile','desktop'] as const` → `type ClientType = (typeof CLIENT_TYPES)[number]` |
+| Error codes / HTTP status codes | Typed subclass of `AppError` in [src/shared/errors/app-error.ts](src/shared/errors/app-error.ts) | `throw new NotFoundError('Chat not found')` — never `throw new Error('not found')` plus a downstream `err.message.includes('not found')` |
+| HTTP header names | `HEADERS` group in [src/shared/constants.ts](src/shared/constants.ts) | `req.headers[HEADERS.APP_CHECK]`, never `'x-firebase-app-check'` inline |
+| Feature flag keys | Typed flag-key union in [src/shared/feature-flags/feature-flag.types.ts](src/shared/feature-flags/feature-flag.types.ts) (see §12) | `flags.get('STREAMING_ENABLED')` is OK because the key is constrained by the union — adding a new flag means updating the union, not just typing a new string |
+| Algorithmic constants (timeouts, retries, factors) | Named local `const` at the top of the function, OR a group in `constants.ts` if reused | `const TOKEN_BUCKET_REFILL_MS = 60_000`. If a second function needs the same number, promote it to `RATE_LIMIT.REFILL_MS` |
+
+**Forbidden:**
+- `setTimeout(fn, 60000)` — what is 60000? Use `const REFILL_MS = 60_000` or `RATE_LIMIT.REFILL_MS`.
+- `if (clientType === 'mobile')` with a free-floating string — use `CLIENT_TYPES` and the `ClientType` type so a typo fails at compile time.
+- `take: 20` in a Prisma query — use `PAGINATION.DEFAULT_LIMIT`.
+- `res.status(404)` — let the error handler translate `NotFoundError` to 404. Status codes only appear in `error-handler.ts` and successful-response paths.
+- `if (err.message.includes('not found'))` — branch on `err instanceof NotFoundError`.
+
+**Required:** every literal in production code is either (a) the named constant declaration itself, or (b) a read from one of the seven sources above. The same rule applies to test fixtures' *assertions* (assert against `PAGINATION.DEFAULT_LIMIT`, not `20`) so a constant change does not silently break tests' meaning. Test *inputs* (e.g., `'hello world'` for a chat message) stay inline — they're data, not configuration.
+
 ---
 
 ## 5. SOLID Principles — Concrete Application
@@ -1158,6 +1195,9 @@ If a reviewer (or you) spots any of these, the PR is blocked:
 - ❌ Raw error stacks in `production` responses.
 - ❌ Boolean parameters in public APIs (`fn(true, false)` is unreadable).
 - ❌ `// eslint-disable-next-line` without a reason comment.
+- ❌ Inline magic literals — numbers, strings, header names, status codes — outside `Config`, `src/shared/constants.ts`, an `AppError` subclass, or a named local `const`. See §4.6.
+- ❌ Premature abstractions / speculative generality — a base class, generic helper, or "for-future-use" parameter introduced before two real call sites need it. See §4.5 (YAGNI).
+- ❌ Copy-pasting a business rule (ownership check, pagination math, error shape) into a second use case instead of reusing the policy/helper. See §4.5 (DRY).
 
 ---
 
@@ -1196,9 +1236,13 @@ If a reviewer (or you) spots any of these, the PR is blocked:
 
 1. §1 Overview
 2. §3 Folder structure
-3. §7 Design patterns (read all five)
-4. §11 Middleware order
-5. §12 Feature flagging
-6. §20 Forbidden patterns
+3. §4.5 Clean Code Principles (KISS / DRY / YAGNI)
+4. §4.6 No Magic Values
+5. §5 SOLID — concrete rules
+6. §6 Clean Architecture rules
+7. §7 Design patterns (read all five)
+8. §11 Middleware order
+9. §12 Feature flagging
+10. §20 Forbidden patterns
 
 That's enough to start writing code that fits this codebase.

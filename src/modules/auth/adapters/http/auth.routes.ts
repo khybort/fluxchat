@@ -47,5 +47,12 @@ export const buildAuthRouters = (
     asyncHandler(controller.me),
   );
 
+  protectedRouter.get(
+    '/me/flags',
+    authMiddleware,
+    rateLimiter.perRoute({ keyBy: 'user' }),
+    asyncHandler(controller.meFlags),
+  );
+
   return { publicRouter, protectedRouter };
 };

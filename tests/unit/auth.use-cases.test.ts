@@ -2,10 +2,12 @@ import { beforeEach, describe, expect, it } from 'vitest';
 
 import { Config } from '../../src/config/config.js';
 import { AuthTokenIssuer } from '../../src/modules/auth/application/services/auth-token.issuer.js';
+import { GetCurrentUserFlagsUseCase } from '../../src/modules/auth/application/use-cases/get-current-user-flags.use-case.js';
 import { GetCurrentUserUseCase } from '../../src/modules/auth/application/use-cases/get-current-user.use-case.js';
 import { LoginUserUseCase } from '../../src/modules/auth/application/use-cases/login-user.use-case.js';
 import { RegisterUserUseCase } from '../../src/modules/auth/application/use-cases/register-user.use-case.js';
 import { ConflictError, UnauthorizedError } from '../../src/shared/errors/app-error.js';
+import { FeatureFlagService } from '../../src/shared/feature-flags/feature-flag.service.js';
 import { InMemoryUserRepository } from '../helpers/in-memory-user-repository.js';
 
 /**
@@ -102,5 +104,50 @@ describe('GetCurrentUserUseCase', () => {
     await expect(getCurrent.execute({ userId: 'missing-id' })).rejects.toBeInstanceOf(
       UnauthorizedError,
     );
+  });
+});
+
+describe('GetCurrentUserFlagsUseCase', () => {
+  it('honors a userId-targeted rule for the matching user but not others', async () => {
+    const flags = FeatureFlagService.getInstance();
+    flags.set('AI_TOOLS_ENABLED', false);
+    await flags.setOverride(
+      'AI_TOOLS_ENABLED',
+      { default: false, rules: [{ if: { userId: 'alice' }, value: true }] },
+      'admin-test',
+    );
+
+    const useCase = new GetCurrentUserFlagsUseCase(flags);
+    const aliceResult = await useCase.execute({ userId: 'alice' });
+    const bobResult = await useCase.execute({ userId: 'bob' });
+
+    expect(aliceResult.flags.AI_TOOLS_ENABLED).toBe(true);
+    expect(bobResult.flags.AI_TOOLS_ENABLED).toBe(false);
+  });
+
+  it('honors a userRole rule', async () => {
+    const flags = FeatureFlagService.getInstance();
+    await flags.setOverride(
+      'STREAMING_ENABLED',
+      { default: false, rules: [{ if: { userRole: 'admin' }, value: true }] },
+      'admin-test',
+    );
+
+    const useCase = new GetCurrentUserFlagsUseCase(flags);
+    const adminResult = await useCase.execute({ userRole: 'admin' });
+    const userResult = await useCase.execute({ userRole: 'user' });
+
+    expect(adminResult.flags.STREAMING_ENABLED).toBe(true);
+    expect(userResult.flags.STREAMING_ENABLED).toBe(false);
+  });
+
+  it('returns an evaluated value for every registered flag', async () => {
+    const flags = FeatureFlagService.getInstance();
+    const useCase = new GetCurrentUserFlagsUseCase(flags);
+    const result = await useCase.execute({});
+
+    const definitionKeys = Object.keys(flags.definitions());
+    const snapshotKeys = Object.keys(result.flags);
+    expect(snapshotKeys.sort()).toEqual(definitionKeys.sort());
   });
 });

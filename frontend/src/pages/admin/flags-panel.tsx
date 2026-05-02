@@ -4,6 +4,7 @@ import type { AdminFlagsResponse, FlagDefinition, FlagName } from '@/api/types';
 import { FlagListSkeleton } from '@/components/admin/flag-list-skeleton';
 import { Button } from '@/components/ui/button';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
+import { ErrorCard } from '@/components/ui/error-card';
 import { MaterialIcon } from '@/components/ui/material-icon';
 
 import { FlagEditor } from './flag-editor';
@@ -63,15 +64,28 @@ export const FlagsPanel = (): React.JSX.Element => {
   const flags = useAdminFlags();
   const [editing, setEditing] = useState<FlagName | null>(null);
   const [confirmClear, setConfirmClear] = useState<FlagName | null>(null);
+  const [confirmClearAll, setConfirmClearAll] = useState(false);
 
   const handleSave = async (name: FlagName, definition: FlagDefinition): Promise<void> => {
     await flags.save(name, definition);
     setEditing(null);
   };
 
+  const hasAnyOverride = (flags.data?.overriddenNames.length ?? 0) > 0;
+
   return (
     <>
-      <div className="mb-4 flex justify-end">
+      <div className="mb-4 flex justify-end gap-2">
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => setConfirmClearAll(true)}
+          disabled={!hasAnyOverride}
+          className="text-error hover:bg-error/10 disabled:text-muted-foreground"
+        >
+          <MaterialIcon name="delete_sweep" className="h-4 w-4" />
+          Clear all overrides
+        </Button>
         <Button
           variant="outline"
           size="sm"
@@ -86,11 +100,17 @@ export const FlagsPanel = (): React.JSX.Element => {
         </Button>
       </div>
 
-      {flags.loading || !flags.data ? (
+      {flags.loading ? (
         <FlagListSkeleton />
-      ) : (
+      ) : flags.error ? (
+        <ErrorCard
+          title="Couldn't load feature flags"
+          message={flags.error}
+          onRetry={() => void flags.retry()}
+        />
+      ) : flags.data ? (
         <FlagsList data={flags.data} onEdit={setEditing} onClear={setConfirmClear} />
-      )}
+      ) : null}
 
       {editing && flags.data ? (
         <FlagEditor
@@ -111,6 +131,19 @@ export const FlagsPanel = (): React.JSX.Element => {
         icon="delete"
         onConfirm={async () => {
           if (confirmClear) await flags.clear(confirmClear);
+        }}
+      />
+
+      <ConfirmDialog
+        open={confirmClearAll}
+        onOpenChange={setConfirmClearAll}
+        title="Clear ALL flag overrides?"
+        description="Wipes every override across every flag — rules, percentage rollouts, and per-user overrides. Each flag falls back to its file/env/code default. This action cannot be undone."
+        confirmLabel="Clear all"
+        tone="destructive"
+        icon="delete_sweep"
+        onConfirm={async () => {
+          await flags.clearAll();
         }}
       />
     </>

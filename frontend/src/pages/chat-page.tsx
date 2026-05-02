@@ -13,6 +13,7 @@ import { NewChatPanel } from '@/components/chat/new-chat-panel';
 import { StreamingStatus } from '@/components/chat/streaming-status';
 import { ToolExecutionCard } from '@/components/chat/tool-execution-card';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
+import { ErrorCard } from '@/components/ui/error-card';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useChatHistory } from '@/hooks/use-chat-history';
 import { useChatStream } from '@/hooks/use-chat-stream';
@@ -35,7 +36,13 @@ export const ChatPage = (): React.JSX.Element => {
   // URL change.
   const justCreatedChatIdRef = useRef<string | null>(null);
 
-  const { messages, setMessages, loadingHistory } = useChatHistory(chatId, justCreatedChatIdRef);
+  const {
+    messages,
+    setMessages,
+    loadingHistory,
+    error: historyError,
+    retry: retryHistory,
+  } = useChatHistory(chatId, justCreatedChatIdRef);
   const { pending, busy, cancel, handleSend, handleRegenerate } = useChatStream({
     setMessages,
     justCreatedChatIdRef,
@@ -99,6 +106,14 @@ export const ChatPage = (): React.JSX.Element => {
         <div className="w-full space-y-message-gap px-4 pb-40 pt-2 md:px-12">
           {loadingHistory ? (
             <HistorySkeleton />
+          ) : historyError ? (
+            <div className="pt-8">
+              <ErrorCard
+                title="Couldn't load this chat"
+                message={historyError}
+                onRetry={retryHistory}
+              />
+            </div>
           ) : (
             <>
               {messages.length === 0 && !pending ? <ConversationEmpty /> : null}

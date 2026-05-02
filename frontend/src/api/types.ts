@@ -42,6 +42,9 @@ export type FlagName =
 export interface AdminFlagsResponse {
   definitions: Record<FlagName, FlagDefinition>;
   snapshot: FeatureFlagsSnapshot;
+  /** Names of flags with a DB override row — drives the "customised" badge.
+   *  A flag with only baked-in code rules is NOT considered customised. */
+  overriddenNames: FlagName[];
 }
 
 export interface AdminUser {

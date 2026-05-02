@@ -15,7 +15,12 @@ const main = async (): Promise<void> => {
   const flags = FeatureFlagService.getInstance();
   const prisma = PrismaService.getInstance();
 
-  await prisma.connect();
+  try {
+    await prisma.connect();
+  } catch (error: unknown) {
+    logger.pino.fatal({ err: error }, 'prisma_connect_failed');
+    throw error;
+  }
   logger.pino.info({ env: config.values.app.nodeEnv }, 'database_connected');
 
   const container = buildContainer();
@@ -68,6 +73,11 @@ const main = async (): Promise<void> => {
   });
   process.on('unhandledRejection', (reason) => {
     logger.pino.fatal({ reason }, 'unhandled_rejection');
+    // An orphaned rejection means some code path has a broken invariant; keep
+    // serving requests on top of it would mask further failures. Mirror the
+    // uncaughtException handler and exit with a non-zero code so the orchestrator
+    // can restart cleanly.
+    void shutdown('unhandledRejection', 1);
   });
 };
 

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 
@@ -13,6 +13,11 @@ interface UseChatHistory {
   messages: Message[];
   setMessages: React.Dispatch<React.SetStateAction<Message[]>>;
   loadingHistory: boolean;
+  /** Non-null when the last load failed AND the user can usefully retry
+   *  (i.e. not a 404 — those navigate away). */
+  error: string | null;
+  /** Re-runs the load. Idempotent. */
+  retry: () => void;
   justCreatedChatIdRef: React.MutableRefObject<string | null>;
 }
 
@@ -29,10 +34,17 @@ export const useChatHistory = (
   const navigate = useNavigate();
   const [messages, setMessages] = useState<Message[]>([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [retryNonce, setRetryNonce] = useState(0);
+
+  const retry = useCallback(() => {
+    setRetryNonce((n) => n + 1);
+  }, []);
 
   useEffect(() => {
     if (!chatId || !token) {
       setMessages([]);
+      setError(null);
       return;
     }
     if (justCreatedChatIdRef.current === chatId) {
@@ -41,6 +53,7 @@ export const useChatHistory = (
     }
     let cancelled = false;
     setLoadingHistory(true);
+    setError(null);
 
     getHistory(token, chatId, { limit: HISTORY_PAGE_LIMIT })
       .then((page) => {
@@ -55,7 +68,7 @@ export const useChatHistory = (
           return;
         }
         const message = err instanceof ApiError ? err.message : 'Failed to load history';
-        toast.error(message);
+        setError(message);
       })
       .finally(() => {
         if (!cancelled) setLoadingHistory(false);
@@ -64,7 +77,7 @@ export const useChatHistory = (
     return () => {
       cancelled = true;
     };
-  }, [chatId, token, navigate, justCreatedChatIdRef]);
+  }, [chatId, token, navigate, justCreatedChatIdRef, retryNonce]);
 
-  return { messages, setMessages, loadingHistory, justCreatedChatIdRef };
+  return { messages, setMessages, loadingHistory, error, retry, justCreatedChatIdRef };
 };
