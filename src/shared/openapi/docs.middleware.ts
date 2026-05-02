@@ -7,8 +7,24 @@ import { buildOpenApiSpec } from './build-spec.js';
 import type { Logger } from '../../infrastructure/logger/logger.js';
 import { NotFoundError } from '../errors/app-error.js';
 
+// swagger-ui-express serves CSS/JS/favicon assets from the `swagger-ui-dist`
+// package's filesystem (`express.static(getAbsoluteSwaggerFsPath())`). Vercel's
+// serverless bundler only traces JS imports, so those static asset files are
+// NOT included in the deployed Lambda — the asset requests fall through to
+// the App Check middleware and return 401. Pin the assets to a public CDN
+// instead so the page works on serverless without a custom bundler step.
+// Pin to the same major version that's resolved in node_modules so prod
+// matches local dev behaviour.
+const SWAGGER_UI_DIST_CDN = 'https://cdn.jsdelivr.net/npm/swagger-ui-dist@5';
+
 const SWAGGER_UI_OPTIONS: swaggerUi.SwaggerUiOptions = {
   customSiteTitle: 'AppNation Chat API',
+  customCssUrl: `${SWAGGER_UI_DIST_CDN}/swagger-ui.css`,
+  customJs: [
+    `${SWAGGER_UI_DIST_CDN}/swagger-ui-bundle.js`,
+    `${SWAGGER_UI_DIST_CDN}/swagger-ui-standalone-preset.js`,
+  ],
+  customfavIcon: `${SWAGGER_UI_DIST_CDN}/favicon-32x32.png`,
   swaggerOptions: {
     persistAuthorization: true,
     docExpansion: 'list',
