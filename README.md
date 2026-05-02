@@ -28,7 +28,8 @@ Run them together with the steps below — or skip straight to [`DEPLOYMENT.md`]
 - Real-time `tool_execution` events during Anthropic streaming — tools fire on `content_block_stop`, before the follow-up text deltas, so SSE clients see the result immediately.
 - Pluggable rate-limit store: in-memory by default, Redis (via `ioredis`) when `REDIS_URL` is set. Same `IRateLimitStore` interface, swap is one line.
 - Feature flags drive runtime behavior with **no redeploy** — change a value, send `SIGHUP`, behavior flips.
-- Five mandatory design patterns visibly applied: Singleton, Repository, Service, manual Dependency Injection, Strategy.
+- Five mandatory design patterns visibly applied: Singleton, Repository (Port + Adapter), Use Case (one `IUseCase` class per HTTP endpoint), manual Dependency Injection (`wireApp` shared between prod + tests), Strategy. Architecture map in [`ARCHITECTURE.md`](./ARCHITECTURE.md).
+- Strict three-layer Clean Architecture per module: `domain/` (entities) → `application/` (use cases + ports + policies + strategies) → `adapters/` (HTTP + Prisma). Dependency direction is one-way and `grep`-able.
 - Strict TypeScript, structured logging (pino), zod-validated config and request schemas.
 
 ## Quickstart
@@ -208,7 +209,7 @@ Same request, returns `{"message": {"role":"assistant","content":"..."}, "toolCa
 | `TOOL_CONVERT_CURRENCY_ENABLED` | bool | `true` | Subordinate — exposes the FX tool |
 | `TOOL_SEARCH_WEB_ENABLED` | bool | `true` | Subordinate — exposes the web-search tool |
 
-The first four flags drive **behavior** via the Strategy + Factory pair (e.g. [`CompletionStrategyFactory`](./src/modules/chat/strategies/completion-strategy.factory.ts), [`HistoryStrategyFactory`](./src/modules/chat/strategies/history-strategy.factory.ts)) — controllers stay branch-free. `COMPLETION_ENABLED` is a route-specific **middleware** kill-switch via [`featureFlagGuard`](./src/shared/middleware/feature-flag-guard.ts) — when off, the completion route short-circuits with 404 (case §6 "Important Note": route-specific feature checks).
+The first four flags drive **behavior** via the Strategy + Factory pair (e.g. [`CompletionStrategyFactory`](./src/modules/chat/application/strategies/completion-strategy.factory.ts), [`HistoryStrategyFactory`](./src/modules/chat/application/strategies/history-strategy.factory.ts)) — use cases stay branch-free. `COMPLETION_ENABLED` is a route-specific **middleware** kill-switch via [`featureFlagGuard`](./src/shared/middleware/feature-flag-guard.ts) — when off, the completion route short-circuits with 404 (case §6 "Important Note": route-specific feature checks).
 
 The five `TOOL_*_ENABLED` flags are **subordinate** to `AI_TOOLS_ENABLED`: the master must be on for any tool to fire, and each per-tool flag then independently includes/excludes that tool from the model's allowlist via [`resolveEnabledTools`](./src/infrastructure/ai/tools/resolve-enabled.ts). This lets ops disable a single noisy/expensive tool (e.g. `searchWeb`) without taking the whole tool feature offline.
 
@@ -331,7 +332,7 @@ docker compose up --build   # app starts, /healthz returns ok
 
 ## Project layout
 
-See [`CLAUDE.md` §3](./CLAUDE.md). One sentence summary: feature modules under `src/modules/`, cross-cutting under `src/infrastructure/` and `src/shared/`, composition root in `src/di/container.ts`, lifecycle in `src/server.ts`.
+See [`ARCHITECTURE.md`](./ARCHITECTURE.md) for the layered diagram and [`CLAUDE.md` §3](./CLAUDE.md) for the exhaustive folder tree. One-sentence summary: each feature module under `src/modules/<X>/` is internally split into `domain/` (entities) + `application/` (use cases + ports + policies + strategies) + `adapters/` (HTTP + Prisma); cross-cutting under `src/infrastructure/` and `src/shared/`; composition root split between [`src/di/wire-app.ts`](./src/di/wire-app.ts) (graph, shared with tests) and [`src/di/container.ts`](./src/di/container.ts) (prod-only edges); lifecycle in `src/server.ts`.
 
 ## AI providers
 
@@ -379,7 +380,7 @@ Algorithm: fixed-window counter (`INCR`/`PEXPIRE`/`PTTL` in Redis; bucket-with-r
 
 ## Deployment
 
-Free-tier production stack: **Neon Postgres + Vercel (backend serverless + frontend SPA) + GitHub Actions**. Every merge to `main` runs the CI gate (typecheck × 2, lint × 2, 70 tests, schema check, build × 2), applies Prisma migrations, then deploys both halves to Vercel in parallel.
+Free-tier production stack: **Neon Postgres + Vercel (backend serverless + frontend SPA) + GitHub Actions**. Every merge to `main` runs the CI gate (typecheck × 2, lint × 2, 146 tests, schema check, build × 2), applies Prisma migrations, then deploys both halves to Vercel in parallel.
 
 Step-by-step setup (signup, env vars, GitHub secrets) lives in [`DEPLOYMENT.md`](./DEPLOYMENT.md).
 
@@ -389,3 +390,5 @@ Step-by-step setup (signup, env vars, GitHub secrets) lives in [`DEPLOYMENT.md`]
 - **Anthropic Sonnet 4.6 as the prime chat model** (direct API, not via Vercel AI SDK), with Groq as the fast path and OpenAI as an additional supported alternative. Mock fallback so the system runs end-to-end with zero external services.
 - **Cursor-based pagination** — scales beyond `OFFSET … LIMIT`.
 - **404 (not 403) on cross-user access** — does not leak the existence of resources.
+- **Interfaces at swap points, concrete classes everywhere else.** Clean Architecture is not "every class gets an interface" — it's about putting the abstraction at the boundary that actually swaps (`IAiProvider`, `IChatRepository`, `IUseCase`, `IRateLimitStore`, …) and leaving single-implementation collaborators (policies, factories, the SSE serializer, controllers) as concrete classes. Adding interfaces to swap-stable classes is ceremony without payoff.
+- **`AppError` is abstract.** Every error category is a typed subclass with a fixed `code` + `statusCode`. `new AppError(...)` is a compile-time error by design, so a fresh error category can never slip in as an inline magic string.

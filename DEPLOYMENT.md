@@ -3,7 +3,7 @@
 Goal: deploy backend + frontend on the **free tier** of every service. The trigger is a merge to `main` — GitHub Actions runs CI gates, applies Prisma migrations, then deploys both halves to Vercel in parallel.
 
 ```
-PR ──► CI (typecheck · lint · 70 tests · build · prisma:check)
+PR ──► CI (typecheck · lint · 146 tests · build · prisma:check)
        │
 merge ─┴──► CI ─► migrate (prisma migrate deploy) ─┬─► deploy backend  (Vercel)
                                                    └─► deploy frontend (Vercel)
@@ -117,7 +117,7 @@ git push origin main
 ```
 
 Watch the run at GitHub → **Actions → Deploy**. Order:
-1. `ci` — 70 tests
+1. `ci` — 146 tests
 2. `migrate` — `prisma migrate deploy` against Neon
 3. `deploy-backend` + `deploy-frontend` (parallel)
 

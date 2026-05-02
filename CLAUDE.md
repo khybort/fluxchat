@@ -105,25 +105,60 @@ src/
 │   │   └── express.d.ts            # Request augmentation (user, requestId, clientType)
 │   └── constants.ts                # business constants (NOT env-based)
 ├── modules/
-│   ├── chat/
-│   │   ├── chat.controller.ts
-│   │   ├── chat.service.ts
-│   │   ├── chat.repository.ts
-│   │   ├── chat.repository.interface.ts
-│   │   ├── chat.routes.ts
-│   │   ├── chat.dto.ts             # zod schemas + inferred types
-│   │   ├── chat.mapper.ts          # Prisma <-> domain mapping
-│   │   ├── chat.openapi.ts         # OpenAPI registration (paths + schemas)
-│   │   └── strategies/
-│   │       ├── completion.strategy.ts        # IStrategy interface
-│   │       ├── streaming-completion.strategy.ts
-│   │       ├── json-completion.strategy.ts
-│   │       ├── completion-strategy.factory.ts
-│   │       ├── history.strategy.ts           # full-history | limited-history
-│   │       └── history-strategy.factory.ts
-│   └── user/
-│       ├── user.repository.ts
-│       └── user.repository.interface.ts
+│   ├── chat/                                  # per-module Clean Arch layout
+│   │   ├── domain/                            # Layer 1: entities (anemic types)
+│   │   │   └── chat.types.ts
+│   │   ├── application/                       # Layer 2: use cases + ports + policies + strategies
+│   │   │   ├── ports/
+│   │   │   │   ├── chat.repository.port.ts    # IChatRepository (port owned by app layer)
+│   │   │   │   └── message.repository.port.ts # IMessageRepository
+│   │   │   ├── policies/                      # domain services that need ports
+│   │   │   │   ├── chat-access.policy.ts      # ensureOwnership (404, no info leak)
+│   │   │   │   └── message-persistence.policy.ts
+│   │   │   ├── use-cases/                     # one IUseCase class per HTTP endpoint
+│   │   │   │   ├── chat.use-cases.ts          # bag interface (controller depends on this)
+│   │   │   │   ├── list-chats.use-case.ts
+│   │   │   │   ├── list-archived-chats.use-case.ts
+│   │   │   │   ├── create-chat.use-case.ts
+│   │   │   │   ├── delete-chat.use-case.ts
+│   │   │   │   ├── archive-chat.use-case.ts
+│   │   │   │   ├── unarchive-chat.use-case.ts
+│   │   │   │   ├── get-chat-history.use-case.ts
+│   │   │   │   ├── run-completion.use-case.ts
+│   │   │   │   └── regenerate-completion.use-case.ts
+│   │   │   └── strategies/                    # use case internals — flag-driven algorithm selection
+│   │   │       ├── completion.strategy.ts
+│   │   │       ├── streaming-completion.strategy.ts
+│   │   │       ├── json-completion.strategy.ts
+│   │   │       ├── completion-strategy.factory.ts
+│   │   │       ├── history.strategy.ts
+│   │   │       └── history-strategy.factory.ts
+│   │   └── adapters/                          # Layer 3: interface adapters
+│   │       ├── http/                          # inbound — Express-facing
+│   │       │   ├── chat.controller.ts         # binds to ChatUseCases bag
+│   │       │   ├── chat.dto.ts                # zod request/response schemas
+│   │       │   ├── chat.routes.ts
+│   │       │   ├── chat.openapi.ts            # side-effect manifest
+│   │       │   ├── chat.openapi.shared.ts     # shared schema registrations
+│   │       │   ├── chat.list.openapi.ts
+│   │       │   ├── chat.history.openapi.ts
+│   │       │   ├── chat.completion.openapi.ts
+│   │       │   ├── chat.archive.openapi.ts
+│   │       │   └── sse.serializer.ts
+│   │       └── persistence/                   # outbound — Prisma-facing
+│   │           ├── chat.prisma.repository.ts  # implements IChatRepository
+│   │           ├── message.prisma.repository.ts
+│   │           └── chat.mapper.ts             # Prisma row ↔ domain
+│   ├── auth/                                  # same layered shape
+│   │   ├── application/
+│   │   │   ├── services/auth-token.issuer.ts  # JWT signing
+│   │   │   └── use-cases/{register,login,get-current-user}.use-case.ts + auth.use-cases.ts (bag)
+│   │   └── adapters/http/{auth.controller,auth.dto,auth.routes,auth.openapi}.ts
+│   ├── admin/                                 # same shape — use cases for flag CRUD + admin user list
+│   └── user/                                  # supporting module — domain + port + persistence only
+│       ├── domain/user.types.ts
+│       ├── application/ports/user.repository.port.ts
+│       └── adapters/persistence/user.prisma.repository.ts
 └── di/
     └── container.ts                # composition root (manual DI)
 prisma/
@@ -146,10 +181,11 @@ README.md
 ```
 
 **Boundary rules** (enforced by review):
-- `controller → service → repository → prisma`. Imports never go backwards.
-- `modules/<X>/` may not import from `modules/<Y>/repository`. It may consume `<Y>`'s service if absolutely necessary, but prefer keeping modules independent.
-- `infrastructure/` and `shared/` may be imported by any module. Modules may not import each other's internals.
-- The composition root (`di/container.ts`) is the **only place** that knows concrete classes. Everything else depends on interfaces.
+- Per module, the dependency direction is `adapters/http → application/use-cases → application/ports ← adapters/persistence`. Imports never go upward (use cases never import from `adapters/`).
+- `domain/` depends on nothing else inside the module — just entity types and pure helpers. Application policies that touch ports live in `application/policies/`, not `domain/`.
+- `modules/<X>/` may import another module's `domain/` types and `application/ports/*.port.ts` (ports are public contracts). It may NOT reach into `<Y>/adapters/` or `<Y>/application/use-cases/` — those are private to the module.
+- `infrastructure/` and `shared/` may be imported by any module. Modules may not import each other's internals beyond the public domain + port surface.
+- The composition root (`di/wire-app.ts` + `di/container.ts`) is the **only place** that calls `new` on use cases, policies, or controllers. Everything else depends on interfaces (ports + the IUseCase bag types).
 
 ---
 
@@ -178,12 +214,12 @@ README.md
 
 | Kind | Convention | Example |
 |---|---|---|
-| Class | `PascalCase` | `ChatService` |
-| Interface | `IPascalCase` | `IChatRepository` |
+| Class | `PascalCase` | `ListChatsUseCase`, `ChatPrismaRepository` |
+| Interface | `IPascalCase` | `IChatRepository`, `IUseCase<TIn, TOut>` |
 | Function / variable | `camelCase` | `listUserChats` |
 | Constant | `SCREAMING_SNAKE_CASE` | `DEFAULT_PAGINATION_LIMIT` |
-| File | `kebab-case` | `chat.service.ts` |
-| Type alias | `PascalCase` | `ChatListResult` |
+| File | `kebab-case` | `list-chats.use-case.ts`, `chat.repository.port.ts` |
+| Type alias | `PascalCase` | `ChatListResult`, `ListChatsInput` |
 | Generic param | `T`, `TIn`, `TOut` | `IStrategy<TIn, TOut>` |
 
 ### Functions & files
@@ -219,7 +255,7 @@ README.md
 | **OCP** — Open/Closed | Adding a new feature flag adds a new Strategy + a factory entry. **You do not modify existing strategies.** |
 | **LSP** — Liskov Substitution | Repositories are programmed against `IChatRepository`. The Prisma implementation and an in-memory test impl must be swappable without changing the service. |
 | **ISP** — Interface Segregation | No god `IChatService` containing 20 methods. Split per use case (`IListChats`, `ISendMessage`) when they grow. Start small; segregate when interfaces drift apart. |
-| **DIP** — Dependency Inversion | Services depend on **interfaces** declared in their own module (`chat.repository.interface.ts`), not on concrete classes. Concrete wiring lives only in `di/container.ts`. |
+| **DIP** — Dependency Inversion | Use cases depend on **port interfaces** declared in their own module (`application/ports/*.port.ts`), not on concrete classes. Controllers depend on the use case bag interface (`application/use-cases/<X>.use-cases.ts`), never on a concrete class. Concrete wiring lives only in `di/wire-app.ts`. |
 
 If you find yourself writing `if (flag) doA() else doB()` in a service or controller — that violates OCP. Lift the branching into a Strategy + Factory.
 
@@ -274,26 +310,30 @@ export class Config {
 - `getInstance()` is lazy.
 - `resetForTesting()` exists **only** because tests need isolation. It is never called outside `tests/`.
 
-### 7.2 Repository Pattern
+### 7.2 Repository Pattern (Port + Adapter)
+
+The port (interface) lives in the application layer; the Prisma adapter that
+implements it lives in the adapters layer. Use cases depend on the port, never
+on the adapter — DI wires the concrete adapter at composition time.
 
 ```ts
-// modules/chat/chat.repository.interface.ts
+// modules/chat/application/ports/chat.repository.port.ts
 export interface IChatRepository {
   findByUser(userId: string, params: ListParams): Promise<Chat[]>;
   findByIdForUser(chatId: string, userId: string): Promise<Chat | null>;
-  countByUser(userId: string): Promise<number>;
+  // ... etc
 }
 
-// modules/chat/chat.repository.ts
-export class ChatRepository implements IChatRepository {
+// modules/chat/adapters/persistence/chat.prisma.repository.ts
+export class ChatPrismaRepository implements IChatRepository {
   constructor(private readonly prisma: PrismaService) {}
 
   async findByUser(userId: string, { cursor, limit }: ListParams): Promise<Chat[]> {
     const rows = await this.prisma.client.chat.findMany({
-      where: { userId },
+      where: { userId, deletedAt: null, archivedAt: null },
       take: limit + 1,
       ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
-      orderBy: { createdAt: 'desc' },
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
     });
     return rows.map(toDomainChat);
   }
@@ -301,72 +341,134 @@ export class ChatRepository implements IChatRepository {
 }
 ```
 
+- Port name pattern: `*.repository.port.ts`. Adapter name pattern: `*.prisma.repository.ts`.
 - Constructor injection of `PrismaService`. Never `new PrismaClient()` inside.
-- Returns **domain types**, mapped in `chat.mapper.ts`.
+- Returns **domain types** from `domain/chat.types.ts`, mapped via `adapters/persistence/chat.mapper.ts`.
 - Repository is **stateless** beyond its dependencies. No per-request data.
 
-### 7.3 Service Pattern
+### 7.3 Use Case Pattern (one class per business operation)
+
+Each public business operation is its own class implementing `IUseCase<TInput, TOutput>`.
+Use cases live in `application/use-cases/` and depend on ports + policies + strategies —
+never on Express types, never on Prisma. Shared per-module helpers (ownership check,
+message persistence) live as application policies in `application/policies/` so
+multiple use cases can compose them without service-to-service coupling.
 
 ```ts
-export class ChatService {
+// shared/use-case/use-case.interface.ts
+export interface IUseCase<TInput, TOutput> {
+  execute(input: TInput): Promise<TOutput>;
+}
+
+// modules/chat/application/use-cases/list-chats.use-case.ts
+export interface ListChatsInput {
+  userId: string;
+  cursor?: string | undefined;
+  limit?: number | undefined;
+}
+
+export class ListChatsUseCase implements IUseCase<ListChatsInput, PageResult<Chat>> {
   constructor(
-    private readonly chatRepo: IChatRepository,
-    private readonly messageRepo: IMessageRepository,
+    private readonly chats: IChatRepository,        // port — not concrete
     private readonly flags: FeatureFlagService,
-    private readonly logger: Logger,
   ) {}
 
-  async listChats(userId: string, input: ListChatsInput): Promise<ListChatsResult> {
-    const limit = clamp(input.limit ?? this.flags.get('PAGINATION_LIMIT'), 10, 100);
-    const rows = await this.chatRepo.findByUser(userId, { cursor: input.cursor, limit });
-    return buildPagedResult(rows, limit);
+  public async execute(input: ListChatsInput): Promise<PageResult<Chat>> {
+    const ceiling = this.flags.get('PAGINATION_LIMIT', { userId: input.userId });
+    const limit = clamp(input.limit ?? ceiling, 10, ceiling);
+    const rows = await this.chats.findByUser(input.userId, { cursor: input.cursor, limit });
+    return buildPagedResult(rows, limit, (c) => c.id);
   }
 }
 ```
 
-- **No HTTP types** in the service signature. No `req`, no `res`, no status codes.
-- Business rules (clamping, ownership checks, transaction composition) live here.
-- Service throws `AppError` subclasses; the controller never builds error responses by hand.
+- **No HTTP types** in the use case signature. No `req`, no `res`, no status codes.
+- Business rules (clamping, ownership via `ChatAccessPolicy`, transaction composition) live here.
+- Use case throws `AppError` subclasses; controller never builds error responses by hand.
+- One use case per public method. Don't bundle 5 operations into one class.
 
-### 7.4 Dependency Injection (Manual)
-
-The composition root `src/di/container.ts` is the **only** file that calls `new` on services and repositories.
+**Use case bag** — controller depends on a typed grouping of `IUseCase` references,
+satisfying ISP without N constructor parameters:
 
 ```ts
-export interface AppContainer {
-  chatController: ChatController;
-  // ...
+// modules/chat/application/use-cases/chat.use-cases.ts
+export interface ChatUseCases {
+  listChats:           IUseCase<ListChatsInput, PageResult<Chat>>;
+  listArchivedChats:   IUseCase<ListChatsInput, PageResult<Chat>>;
+  createChat:          IUseCase<CreateChatInput, Chat>;
+  // ... one entry per HTTP endpoint
 }
 
-export function buildContainer(): AppContainer {
-  const config = Config.getInstance();
-  const logger = Logger.getInstance();
-  const prisma = PrismaService.getInstance();
-  const flags = FeatureFlagService.getInstance();
+// modules/chat/adapters/http/chat.controller.ts
+export class ChatController {
+  constructor(private readonly useCases: ChatUseCases) {}
 
-  // AI providers: prime = Anthropic (Claude Sonnet 4.6), fast = Fallback(Groq -> Anthropic).
-  // Chat completion uses `prime`. Tool/analysis paths use `fast`.
-  const prime = buildPrimeProvider(builders, logger);
-  const fast = buildFastProvider(builders, logger);
-
-  const chatRepo = new ChatRepository(prisma);
-  const messageRepo = new MessageRepository(prisma);
-
-  const completionFactory = new CompletionStrategyFactory(flags, aiProvider, messageRepo, logger);
-  const historyFactory = new HistoryStrategyFactory(flags, messageRepo);
-
-  const chatService = new ChatService(chatRepo, messageRepo, flags, logger);
-  const completionService = new CompletionService(chatRepo, completionFactory, logger);
-  const historyService = new HistoryService(chatRepo, historyFactory);
-
-  const chatController = new ChatController(chatService, completionService, historyService);
-
-  return { chatController };
+  public listChats = async (req: Request, res: Response): Promise<void> => {
+    const result = await this.useCases.listChats.execute({ ... });
+    res.status(200).json(result);
+  };
 }
 ```
 
-- Tests build their **own** container with mocks. Never reuse the production container in tests.
-- Routes import the controller from the container, not directly from the module.
+### 7.4 Dependency Injection (Manual)
+
+The composition root is split: `src/di/wire-app.ts` builds the strategy → policy →
+use case → controller → router graph (shared with tests), and `src/di/container.ts`
+provides the production-only edges (Prisma, Redis, AI providers). `wireApp` is the
+**only** file that calls `new` on use cases, policies, or controllers.
+
+```ts
+// src/di/wire-app.ts
+export const wireApp = (deps: AppDependencies): WiredApp => {
+  // Application policies (shared by use cases).
+  const chatAccess = new ChatAccessPolicy(deps.repos.chats);
+  const messagePersistence = new MessagePersistencePolicy(deps.repos.messages, deps.logger);
+  const tokenIssuer = new AuthTokenIssuer(deps.config);
+
+  // Strategy factories — chat completion uses the prime provider per spec.
+  const completionFactory = new CompletionStrategyFactory(deps.aiPrime, deps.flags);
+  const historyFactory = new HistoryStrategyFactory(deps.repos.messages, deps.flags);
+
+  // Use case bags — typed grouping the controllers depend on.
+  const chatUseCases: ChatUseCases = {
+    listChats: new ListChatsUseCase(deps.repos.chats, deps.flags),
+    runCompletion: new RunCompletionUseCase(
+      chatAccess, deps.repos.messages, messagePersistence, completionFactory, deps.logger,
+    ),
+    // ... 9 entries total
+  };
+  const authUseCases: AuthUseCases = { /* 3 entries */ };
+  const adminUseCases: AdminUseCases = { /* 6 entries */ };
+
+  // Controllers + routers.
+  return {
+    middleware: { auth: buildAuthMiddleware(deps.config), appCheck: buildAppCheckMiddleware(deps.config) },
+    controllers: {
+      chat: new ChatController(chatUseCases),
+      auth: new AuthController(authUseCases),
+      admin: new AdminController(adminUseCases),
+    },
+    routers: { /* built from controllers + RateLimiterFactory */ },
+  };
+};
+
+// src/di/container.ts — production-only edges, then delegates the graph to wireApp
+export const buildContainer = (): AppContainer => {
+  const config = Config.getInstance();
+  // ... singletons, AI providers, Redis store ...
+
+  // Prisma adapters implementing the application/ports/* interfaces.
+  const chats = new ChatPrismaRepository(prisma);
+  const messages = new MessagePrismaRepository(prisma);
+  const users = new UserPrismaRepository(prisma);
+
+  const wired = wireApp({ config, logger, flags, rateLimitStore, aiPrime: prime, repos: { chats, messages, users } });
+  return { /* expose wired + container-level resources */ };
+};
+```
+
+- Tests call `wireApp` with **InMemory* repositories + a mock AI provider**. Same graph as prod, no drift.
+- Routes import the controller via the container/wireApp output, not directly from the module.
 
 ### 7.4.b AI Provider Wiring (architecture rule)
 
@@ -748,8 +850,10 @@ That's it. **You do not modify existing strategies, services, or controllers.** 
 
 ### AppError hierarchy
 
+`AppError` is **abstract** — every concrete error must be a typed subclass with a fixed `code` + `statusCode`. The compiler enforces this: `new AppError(...)` fails with "Cannot create an instance of an abstract class", so a fresh error category cannot slip in as an inline magic string.
+
 ```ts
-export class AppError extends Error {
+export abstract class AppError extends Error {
   constructor(
     public readonly code: string,
     public readonly statusCode: number,
@@ -758,13 +862,20 @@ export class AppError extends Error {
   ) { super(message); }
 }
 
-export class ValidationError   extends AppError { constructor(d?: unknown) { super('VALIDATION_ERROR',   400, 'Invalid input', d); } }
-export class UnauthorizedError extends AppError { constructor(m='Unauthorized') { super('UNAUTHORIZED',   401, m); } }
-export class ForbiddenError    extends AppError { constructor(m='Forbidden')   { super('FORBIDDEN',       403, m); } }
-export class NotFoundError     extends AppError { constructor(m='Not found')   { super('NOT_FOUND',       404, m); } }
-export class RateLimitError    extends AppError { constructor()                { super('RATE_LIMITED',    429, 'Too many requests'); } }
-export class FeatureDisabledError extends AppError { constructor(f: string)    { super('FEATURE_DISABLED',404, `Feature '${f}' disabled`); } }
+export class ValidationError      extends AppError { constructor(d?: unknown)     { super('VALIDATION_ERROR',     400, 'Invalid input', d); } }
+export class UnauthorizedError    extends AppError { constructor(m='Unauthorized') { super('UNAUTHORIZED',         401, m); } }
+export class ForbiddenError       extends AppError { constructor(m='Forbidden')   { super('FORBIDDEN',             403, m); } }
+export class NotFoundError        extends AppError { constructor(m='Not found')   { super('NOT_FOUND',             404, m); } }
+export class ConflictError        extends AppError { constructor(m='Conflict')    { super('CONFLICT',              409, m); } }
+export class RateLimitError       extends AppError { constructor(retryAfter?: number) { super('RATE_LIMITED',     429, 'Too many requests', { retryAfterSeconds: retryAfter }); } }
+export class FeatureDisabledError extends AppError { constructor(f: string)       { super('FEATURE_DISABLED',      404, `Feature '${f}' is disabled`); } }
+export class AppCheckError        extends AppError { constructor(m='App Check verification failed') { super('APP_CHECK_FAILED', 401, m); } }
+export class ToolExecutionError   extends AppError { constructor(t: string, m: string, d?: unknown) { super('TOOL_EXECUTION_FAILED', 422, `[${t}] ${m}`, d); } }
+export class AiProviderError      extends AppError { constructor(m='AI provider unavailable') { super('AI_PROVIDER_ERROR', 503, m); } }
+export class InternalServerError  extends AppError { constructor(m='Internal server error', d?: unknown) { super('INTERNAL_ERROR', 500, m, d); } }
 ```
+
+Adding a new error category = new subclass. Never construct `AppError` directly — that's a compile-time error by design.
 
 ### errorHandler middleware
 
@@ -808,23 +919,27 @@ In `production`, stack traces are **never** in the response. In `development`, i
 ```
 tests/
 ├── unit/
-│   ├── chat.service.test.ts
+│   ├── chat.use-cases.test.ts        # ListChatsUseCase, CreateChatUseCase, ChatAccessPolicy, ...
+│   ├── auth.use-cases.test.ts        # RegisterUserUseCase, LoginUserUseCase, ...
 │   ├── completion-strategy.factory.test.ts
+│   ├── tools.test.ts
 │   └── feature-flag.service.test.ts
 ├── integration/
 │   ├── chats.e2e.test.ts            # supertest against the Express app
 │   └── completion.e2e.test.ts       # SSE + JSON branches
 └── helpers/
-    ├── build-test-container.ts       # mock container
-    └── reset-singletons.ts           # Config/Logger/Flags reset
+    ├── build-test-app.ts             # wireApp + InMemory* repos + MockAiProvider
+    ├── in-memory-repositories.ts     # implements port interfaces
+    └── in-memory-user-repository.ts
 ```
 
 ### Rules
 
-- **Unit tests** mock repositories with hand-written fakes that implement the interface. Do not mock `IChatRepository` with Jest auto-mock — write a small `InMemoryChatRepository`.
-- **Integration tests** use `supertest` against `createApp(testContainer)`. The DB is either the same Postgres with a transaction-rollback wrapper, or a separate `db-test` service in `docker-compose.yml`.
-- **Coverage targets**: services ≥ 80%, strategies = 100%, error handler = 100%.
-- **Naming**: `describe('ChatService.listChats')` → `it('clamps limit to PAGINATION_LIMIT')`.
+- **Unit tests** mock ports with hand-written fakes that implement the interface (`IChatRepository`, `IUserRepository`). Do not mock with Jest auto-mock — write a small `InMemoryChatRepository`.
+- Each use case is testable in isolation: `new ListChatsUseCase(repo, flags).execute({...})`. No harness needed.
+- **Integration tests** use `supertest` against `buildTestApp(...)`. Same Postgres in CI; a separate `db-test` Postgres in `docker-compose.yml` for local.
+- **Coverage targets**: use cases ≥ 85% lines, strategies = 100%, policies ≥ 90%, error handler = 100%.
+- **Naming**: `describe('ListChatsUseCase')` → `it('clamps user-supplied limit to PAGINATION_LIMIT')`.
 - **Per-test isolation**: each test calls `resetSingletons()` in `beforeEach`.
 - **Feature flag combinatorics**: every flag is tested in both `true` and `false` states. `STREAMING_ENABLED` is tested for both SSE and JSON.
 
