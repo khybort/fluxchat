@@ -12,12 +12,12 @@ import { OpenAiProvider } from '../infrastructure/ai/openai.provider.js';
 import { PrismaService } from '../infrastructure/database/prisma.service.js';
 import { PrismaFlagOverrideStore } from '../infrastructure/feature-flags/prisma-override-store.js';
 import { Logger } from '../infrastructure/logger/logger.js';
-import type { AdminController } from '../modules/admin/admin.controller.js';
-import type { AuthController } from '../modules/auth/auth.controller.js';
-import type { ChatController } from '../modules/chat/chat.controller.js';
-import { ChatRepository } from '../modules/chat/chat.repository.js';
-import { MessageRepository } from '../modules/chat/message.repository.js';
-import { UserRepository } from '../modules/user/user.repository.js';
+import type { AdminController } from '../modules/admin/adapters/http/admin.controller.js';
+import type { AuthController } from '../modules/auth/adapters/http/auth.controller.js';
+import type { ChatController } from '../modules/chat/adapters/http/chat.controller.js';
+import { ChatPrismaRepository } from '../modules/chat/adapters/persistence/chat.prisma.repository.js';
+import { MessagePrismaRepository } from '../modules/chat/adapters/persistence/message.prisma.repository.js';
+import { UserPrismaRepository } from '../modules/user/adapters/persistence/user.prisma.repository.js';
 import { FeatureFlagService } from '../shared/feature-flags/feature-flag.service.js';
 import { InMemoryRateLimitStore } from '../shared/rate-limit/in-memory.store.js';
 import type { IRateLimitStore } from '../shared/rate-limit/rate-limit.types.js';
@@ -177,11 +177,11 @@ export const buildContainer = (): AppContainer => {
 
   const rateLimit = buildRateLimitStore(config, logger);
 
-  // Repositories (DIP — services depend on the interfaces, the container
+  // Repositories (DIP — use cases depend on the port interfaces, the container
   // injects the Prisma-backed concretions).
-  const chats = new ChatRepository(prisma);
-  const messages = new MessageRepository(prisma);
-  const users = new UserRepository(prisma);
+  const chats = new ChatPrismaRepository(prisma);
+  const messages = new MessagePrismaRepository(prisma);
+  const users = new UserPrismaRepository(prisma);
 
   // Strategy → service → controller → router graph. Identical wiring runs
   // in tests with in-memory repos + a mock AI provider, so a signature change

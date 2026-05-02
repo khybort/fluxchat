@@ -15,9 +15,9 @@ import { PostgreSqlContainer, type StartedPostgreSqlContainer } from '@testconta
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { PrismaService } from '../../src/infrastructure/database/prisma.service.js';
-import { ChatRepository } from '../../src/modules/chat/chat.repository.js';
-import { MessageRepository } from '../../src/modules/chat/message.repository.js';
-import { UserRepository } from '../../src/modules/user/user.repository.js';
+import { ChatPrismaRepository as ChatRepository } from '../../src/modules/chat/adapters/persistence/chat.prisma.repository.js';
+import { MessagePrismaRepository as MessageRepository } from '../../src/modules/chat/adapters/persistence/message.prisma.repository.js';
+import { UserPrismaRepository as UserRepository } from '../../src/modules/user/adapters/persistence/user.prisma.repository.js';
 
 // Opt-in unless Docker is known-available. Local dev: `RUN_DB_TESTS=1 pnpm vitest run db-real`.
 const SHOULD_RUN = process.env.RUN_DB_TESTS === '1';

@@ -1,10 +1,10 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 
-import { HistoryStrategyFactory } from '../../src/modules/chat/strategies/history-strategy.factory.js';
+import { HistoryStrategyFactory } from '../../src/modules/chat/application/strategies/history-strategy.factory.js';
 import {
   FullHistoryStrategy,
   LimitedHistoryStrategy,
-} from '../../src/modules/chat/strategies/history.strategy.js';
+} from '../../src/modules/chat/application/strategies/history.strategy.js';
 import { LIMITED_HISTORY_COUNT } from '../../src/shared/constants.js';
 import { FeatureFlagService } from '../../src/shared/feature-flags/feature-flag.service.js';
 import { InMemoryMessageRepository } from '../helpers/in-memory-repositories.js';

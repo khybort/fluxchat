@@ -1,9 +1,9 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 
 import { MockAiProvider } from '../../src/infrastructure/ai/mock.provider.js';
-import { CompletionStrategyFactory } from '../../src/modules/chat/strategies/completion-strategy.factory.js';
-import { JsonCompletionStrategy } from '../../src/modules/chat/strategies/json-completion.strategy.js';
-import { StreamingCompletionStrategy } from '../../src/modules/chat/strategies/streaming-completion.strategy.js';
+import { CompletionStrategyFactory } from '../../src/modules/chat/application/strategies/completion-strategy.factory.js';
+import { JsonCompletionStrategy } from '../../src/modules/chat/application/strategies/json-completion.strategy.js';
+import { StreamingCompletionStrategy } from '../../src/modules/chat/application/strategies/streaming-completion.strategy.js';
 import { FeatureFlagService } from '../../src/shared/feature-flags/feature-flag.service.js';
 
 describe('CompletionStrategyFactory', () => {

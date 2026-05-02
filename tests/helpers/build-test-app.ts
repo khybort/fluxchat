@@ -1,7 +1,7 @@
 // OpenAPI side-effect imports — must precede any registry consumer (mountDocs).
 import '../../src/shared/openapi/zod.js';
-import '../../src/modules/auth/auth.openapi.js';
-import '../../src/modules/chat/chat.openapi.js';
+import '../../src/modules/auth/adapters/http/auth.openapi.js';
+import '../../src/modules/chat/adapters/http/chat.openapi.js';
 import '../../src/modules/healthz.openapi.js';
 
 import cors from 'cors';

@@ -1,8 +1,8 @@
 // Side-effect imports — keep at the very top so the zod-openapi extension
 // is wired in BEFORE any module-level *.openapi.ts file evaluates.
 import './shared/openapi/zod.js';
-import './modules/auth/auth.openapi.js';
-import './modules/chat/chat.openapi.js';
+import './modules/auth/adapters/http/auth.openapi.js';
+import './modules/chat/adapters/http/chat.openapi.js';
 import './modules/healthz.openapi.js';
 
 import cors from 'cors';

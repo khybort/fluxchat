@@ -1,9 +1,9 @@
+import type { IChatRepository } from '../../src/modules/chat/application/ports/chat.repository.port.js';
 import type {
   CreateMessageInput,
-  IChatRepository,
   IMessageRepository,
-} from '../../src/modules/chat/chat.repository.interface.js';
-import type { Chat, ListParams, Message } from '../../src/modules/chat/chat.types.js';
+} from '../../src/modules/chat/application/ports/message.repository.port.js';
+import type { Chat, ListParams, Message } from '../../src/modules/chat/domain/chat.types.js';
 
 let nextId = 1;
 const id = (): string => `00000000-0000-0000-0000-${String(nextId++).padStart(12, '0')}`;

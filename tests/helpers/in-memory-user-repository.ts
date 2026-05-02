@@ -4,8 +4,8 @@ import type {
   CreateUserInput,
   IUserRepository,
   ListUsersParams,
-} from '../../src/modules/user/user.repository.interface.js';
-import type { User, UserWithCredentials } from '../../src/modules/user/user.types.js';
+} from '../../src/modules/user/application/ports/user.repository.port.js';
+import type { User, UserWithCredentials } from '../../src/modules/user/domain/user.types.js';
 
 type Row = UserWithCredentials;
 
