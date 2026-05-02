@@ -1,4 +1,11 @@
-export class AppError extends Error {
+/**
+ * Base for every typed application error. `abstract` to force subclassing —
+ * a fresh error category should always carry a typed name + fixed `code` +
+ * `statusCode` instead of being constructed inline with magic strings. The
+ * compiler enforces this: `new AppError(...)` fails with "Cannot create an
+ * instance of an abstract class".
+ */
+export abstract class AppError extends Error {
   public readonly code: string;
   public readonly statusCode: number;
   public readonly details: unknown;
@@ -64,5 +71,23 @@ export class AppCheckError extends AppError {
 export class ToolExecutionError extends AppError {
   constructor(toolName: string, message: string, details?: unknown) {
     super('TOOL_EXECUTION_FAILED', 422, `[${toolName}] ${message}`, details);
+  }
+}
+
+/** Upstream AI provider failed (Anthropic/OpenAI/Groq SDK error). */
+export class AiProviderError extends AppError {
+  constructor(message = 'AI provider unavailable') {
+    super('AI_PROVIDER_ERROR', 503, message);
+  }
+}
+
+/**
+ * Catch-all for an unrecognised error inside a request — only thrown by the
+ * error handler's fallback branch. Public response is sanitised in production
+ * (CLAUDE.md §14); the original message is kept for dev visibility.
+ */
+export class InternalServerError extends AppError {
+  constructor(message = 'Internal server error', details?: unknown) {
+    super('INTERNAL_ERROR', 500, message, details);
   }
 }

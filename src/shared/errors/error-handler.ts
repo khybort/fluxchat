@@ -3,7 +3,14 @@ import { Prisma } from '@prisma/client';
 import type { ErrorRequestHandler, RequestHandler } from 'express';
 import { ZodError } from 'zod';
 
-import { AppError, ConflictError, NotFoundError, ValidationError } from './app-error.js';
+import {
+  AiProviderError,
+  AppError,
+  ConflictError,
+  InternalServerError,
+  NotFoundError,
+  ValidationError,
+} from './app-error.js';
 import { Config } from '../../config/config.js';
 
 const isProd = (): boolean => Config.getInstance().values.app.nodeEnv === 'production';
@@ -22,14 +29,10 @@ const toAppError = (error: unknown): AppError => {
   }
 
   if (error instanceof Anthropic.APIError) {
-    return new AppError('AI_PROVIDER_ERROR', 503, 'AI provider unavailable');
+    return new AiProviderError();
   }
 
-  return new AppError(
-    'INTERNAL_ERROR',
-    500,
-    error instanceof Error ? error.message : 'Internal server error',
-  );
+  return new InternalServerError(error instanceof Error ? error.message : 'Internal server error');
 };
 
 export const errorHandler: ErrorRequestHandler = (error, req, res, _next) => {
